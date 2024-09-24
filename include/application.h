@@ -6,7 +6,7 @@
 class Application {
 public:
     Application(ReliableComm* comm);
-    void run();
+    void run(int process_id);
 
 private:
     ReliableComm* comm;

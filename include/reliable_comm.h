@@ -8,6 +8,15 @@
 #include <mutex>
 #include <condition_variable>
 
+enum State {
+    Waiting,
+    SendSYN,
+    SendMESSAGE,
+    ReceiveACK,
+    ReceiveMESSAGE,
+    ReceiveCLOSE
+};
+
 class Channels;
 class FailureDetection;
 
@@ -18,8 +27,10 @@ public:
     void broadcast(const std::vector<uint8_t>& message);
     Message receive();
     Message deliver();
+    int get_process_id();
 
 private:
+    enum State communication_state;
     int process_id;
     std::map<int, std::pair<std::string, int>> nodes;
     std::set<int> delivered_messages;
@@ -32,9 +43,11 @@ private:
     std::queue<Message> message_queue;
 
     void listen();
-    void send_message(int id, const std::vector<uint8_t>& message);
+    int send_message(int id, const std::vector<uint8_t>& message);
     bool is_delivered(int msg_hash);
     void mark_delivered(int msg_hash);
+
+    Message receive_single_msg();
 };
 
 #endif
