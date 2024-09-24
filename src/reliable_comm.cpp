@@ -14,7 +14,7 @@ ReliableComm::ReliableComm(int id, const std::map<int, std::pair<std::string, in
     : process_id(id), nodes(nodes) {
     // Initialize Channels and FailureDetection
     channels = new Channels(nodes);
-    failure_detection = new FailureDetection();
+    failure_detection = new FailureDetection(5);
 
     // Create listener thread
     std::thread listener(&ReliableComm::listen, this);
