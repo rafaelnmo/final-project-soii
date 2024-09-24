@@ -1,17 +1,22 @@
 #include "failure_detection.h"
-using namespace std::chrono;
 
 FailureDetection::FailureDetection(double timeout) {
     max_time = timeout;
+};
+
+double getCurrentTimeInSeconds() {
+    auto now = std::chrono::high_resolution_clock::now();
+    auto duration = now.time_since_epoch(); // Duration since epoch in nanoseconds
+    return std::chrono::duration<double>(duration).count(); // Convert to seconds as double
 }
 
 void FailureDetection::starttime() {
-    start = high_resolution_clock::now();
+    start = getCurrentTimeInSeconds();
 }
 
 bool FailureDetection::timedout() {
-    double now = high_resolution_clock::now();
-    double duration = duration_cast<milliseconds>(now - start);
+    double now = getCurrentTimeInSeconds();
+    double duration = (now - start);
     return (duration>max_time);
 }
 
