@@ -18,7 +18,6 @@ enum State {
 };
 
 class Channels;
-class FailureDetection;
 
 class ReliableComm {
 public:
@@ -36,7 +35,6 @@ private:
     std::set<int> delivered_messages;
     
     Channels* channels;
-    FailureDetection* failure_detection;
     
     std::mutex mtx;
     std::condition_variable cv;

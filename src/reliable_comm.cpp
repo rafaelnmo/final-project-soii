@@ -1,6 +1,5 @@
 #include "reliable_comm.h"
 #include "channels.h"
-#include "failure_detection.h"
 #include <cstring>
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -15,10 +14,9 @@
 ReliableComm::ReliableComm(int id, const std::map<int, std::pair<std::string, int>>& nodes)
     : process_id(id), nodes(nodes) {
     communication_state = Waiting;
-    // Initialize Channels and FailureDetection
+    // Initialize Channels
     channels = new Channels(nodes);
     channels->bind_socket(id);
-    //failure_detection = new FailureDetection(5);
 
     // Create listener thread
     std::thread listener(&ReliableComm::listen, this);
@@ -205,7 +203,7 @@ Message ReliableComm::receive() {
                 status = future.wait_for(std::chrono::milliseconds(1000));
 
                 if (status == std::future_status::timeout) {
-                    // send_syn() is not complete.
+                    // send_ack() is not complete.
                     std::cout<< "timeout on msg" << std::endl;
                     loop = true;
                     counter++;
@@ -214,7 +212,7 @@ Message ReliableComm::receive() {
                         inner_loop = false;
                     } 
                 } else if (status == std::future_status::ready) {
-                    // send_syn() is complete.
+                    // send_ack() is complete.
                     std::cout<< "no timeout on msg" << std::endl;
                     msg = future.get();
                     loop = false;
