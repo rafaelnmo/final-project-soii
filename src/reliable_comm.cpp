@@ -41,7 +41,7 @@ void ReliableComm::broadcast(const std::vector<uint8_t>& message) {
 
 Message ReliableComm::send_syn_and_wait_ack(int id) {
     std::cout<< "sending syn" << std::endl;
-    channels->send_message(id, std::vector<uint8_t>{'S', 'Y', 'N'});    // envia SYN
+    channels->send_message(id, process_id, std::vector<uint8_t>{'S', 'Y', 'N'});    // envia SYN
     std::cout<< "syn sent" << std::endl;
 
     std::cout<< "waiting for ack" << std::endl;
@@ -53,7 +53,7 @@ Message ReliableComm::send_syn_and_wait_ack(int id) {
 
 Message ReliableComm::send_contents_and_wait_close(int id, const std::vector<uint8_t>& message) {
     std::cout<< "send msg" << std::endl;
-    channels->send_message(id, message);    // envia MESSAGE
+    channels->send_message(id, process_id, message);    // envia MESSAGE
     std::cout<< "msg received" << std::endl;
 
     std::cout<< "receive CLOSE" << std::endl;
@@ -170,7 +170,7 @@ Message ReliableComm::receive_single_msg() {
 
 Message ReliableComm::send_ack_recv_contents(int received_sender_id) {
     std::cout<< "sending ack" << std::endl;
-    channels->send_message(received_sender_id, std::vector<uint8_t>{'A', 'C', 'K'});
+    channels->send_message(received_sender_id, process_id, std::vector<uint8_t>{'A', 'C', 'K'});
     std::cout<< "ack sent" << std::endl;
 
     std::cout<< "waiting msg" << std::endl;
@@ -185,6 +185,9 @@ Message ReliableComm::receive() {
     bool loop = true;
     bool inner_loop = true;
     Message msg = receive_single_msg();
+    for (auto byte : msg.content) {
+        std::cout << byte << std::endl;
+    }
     int received_sender_id = msg.sender_id;
     std::cout<< "received new message" << std::endl;
 
@@ -222,7 +225,7 @@ Message ReliableComm::receive() {
 
             if (!inner_loop && !loop) {
                 std::cout<< "send CLOSE" << std::endl;
-                channels->send_message(received_sender_id, std::vector<uint8_t>{'C', 'L', 'O', 'S', 'E'});
+                channels->send_message(received_sender_id, process_id, std::vector<uint8_t>{'C', 'L', 'O', 'S', 'E'});
                 loop = false;
             }
         } else {

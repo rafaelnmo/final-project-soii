@@ -35,15 +35,18 @@ void Channels::bind_socket(int process_id) {
     }
 }
 
-void Channels::send_message(int id, const std::vector<uint8_t>& message) {
+void Channels::send_message(int id, int process_id, const std::vector<uint8_t>& message) {
     struct sockaddr_in dest_addr;
     memset(&dest_addr, 0, sizeof(dest_addr));
     dest_addr.sin_family = AF_INET;
     dest_addr.sin_port = htons(nodes.at(id).second);
     inet_pton(AF_INET, nodes.at(id).first.c_str(), &dest_addr.sin_addr);
 
-    int msg_hash = calculate_hash(message);
-    std::vector<uint8_t> msg_with_hash = message;
+    Message msg(process_id, message);
+    std::vector<uint8_t> new_message = msg.serialize();
+
+    int msg_hash = calculate_hash(new_message);
+    std::vector<uint8_t> msg_with_hash = new_message;
     msg_with_hash.push_back(msg_hash & 0xFF);
     msg_with_hash.push_back((msg_hash >> 8) & 0xFF);
 
@@ -61,7 +64,8 @@ std::pair<Message, int> Channels::receive_message() {
     if (bytes_received > 0) {
         std::vector<uint8_t> msg(buffer, buffer + bytes_received - 2);
         int msg_hash = buffer[bytes_received - 2] | (buffer[bytes_received - 1] << 8);
-        return { Message(0, msg), msg_hash }; // Adjust sender_id 
+        Message new_message = Message::deserialize(msg);
+        return { new_message, msg_hash }; // Adjust sender_id 
     }
 
     return { Message(0, {}), 0 }; // Return an empty message in case of failure
