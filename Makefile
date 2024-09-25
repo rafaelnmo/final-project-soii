@@ -3,7 +3,7 @@ CXXFLAGS = -std=c++20 -Include -g -Wall -Werror -pedantic -I $$(pwd)/include
 CXXFLAGS = -std=c++20 -Include -g -Wall -Werror -pedantic -I $$(pwd)/include
 
 # Define sources and objects
-SRCS = src/application.cpp src/reliable_comm.cpp src/failure_detection.cpp src/channels.cpp src/observer.cpp src/main.cpp src/message.cpp
+SRCS = src/application.cpp src/reliable_comm.cpp src/channels.cpp src/main.cpp src/message.cpp
 #SRCS := $(shell find src -name '*.cpp') src/message.cpp
 OBJS = $(SRCS:.cpp=.o)
 
