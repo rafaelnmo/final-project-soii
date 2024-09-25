@@ -9,6 +9,7 @@ struct Message {
     std::vector<uint8_t> content;
     
     Message(int sender, const std::vector<uint8_t>& msg);
+    Message();
 };
 
 #endif

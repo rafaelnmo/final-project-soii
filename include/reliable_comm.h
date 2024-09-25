@@ -48,6 +48,9 @@ private:
     void mark_delivered(int msg_hash);
 
     Message receive_single_msg();
+    Message send_syn(int id);
+    Message send_contents(int id, const std::vector<uint8_t>& message);
+    Message recv_contents(int received_sender_id);
 };
 
 #endif

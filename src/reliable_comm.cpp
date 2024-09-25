@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <thread>
 #include <iostream>
+#include <future>
 
 #define MAX_BUFFER_SIZE 1024
 
@@ -39,28 +40,90 @@ void ReliableComm::broadcast(const std::vector<uint8_t>& message) {
     }
 }
 
-int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
-    communication_state = SendSYN;
-    //Message received;// = new Message(-1,std::vector<uint8_t>{});
-    //int counter = 0;
-
+Message ReliableComm::send_syn(int id) {
     std::cout<< "sending syn" << std::endl;
     channels->send_message(id, std::vector<uint8_t>{'S', 'Y', 'N'});    // envia SYN
+    std::cout<< "syn sent" << std::endl;
 
-    // recebe ACK
     std::cout<< "waiting for ack" << std::endl;
-    Message received = receive_single_msg();
+    Message received = receive_single_msg();    // recebe ACK
     std::cout<< "ack received" << std::endl;
 
-    communication_state = SendMESSAGE;
-    //counter = 0;
+    return received;
+}
+
+Message ReliableComm::send_contents(int id, const std::vector<uint8_t>& message) {
     std::cout<< "send msg" << std::endl;
     channels->send_message(id, message);    // envia MESSAGE
+    std::cout<< "msg received" << std::endl;
+
     std::cout<< "receive CLOSE" << std::endl;
-    received = receive_single_msg();     // recebe CLOSE
+    Message received = receive_single_msg();     // recebe CLOSE
+    std::cout<< "CLOSE received" << std::endl;
+
+    return received;
+}
+
+int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
+    std::future_status status;
+
+    communication_state = SendSYN;
+    bool loop = true;
+    Message received;
+    while (loop) {
+        std::future<Message> future = std::async(std::launch::async, [this, id]() {
+            return send_syn(id);
+        });
+
+        status = future.wait_for(std::chrono::milliseconds(1000));
+
+        if (status == std::future_status::timeout) {
+            // send_syn() is not complete.
+            std::cout<< "timeout on syn" << std::endl;
+            loop = true;
+        } else if (status == std::future_status::ready) {
+            // send_syn() is complete.
+            std::cout<< "no timeout on syn" << std::endl;
+            received = future.get();
+            if (received.content != std::vector<uint8_t>{'A', 'C', 'K'}) {
+                std::cout<< "received message other than ACK" << std::endl;
+                loop = true;
+            } else {
+                loop = false;
+            }
+        }
+    }
+    loop = true;
+    
+    communication_state = SendMESSAGE;
+
+    while (loop) {
+        std::future<Message> future = std::async(std::launch::async, [this, id, message]() {
+            return send_contents(id, message);
+        });
+
+        status = future.wait_for(std::chrono::milliseconds(1000));
+
+        if (status == std::future_status::timeout) {
+            // send_syn() is not complete.
+            std::cout<< "timeout on contents" << std::endl;
+            loop = true;
+        } else if (status == std::future_status::ready) {
+            // send_syn() is complete.
+            std::cout<< "no timeout on contents" << std::endl;
+            received = future.get();
+            if (received.content != std::vector<uint8_t>{'C', 'L','O','S','E'}) {
+                std::cout<< "received message other than CLOSE" << std::endl;
+                loop = true;
+            } else {
+                loop = false;
+            }
+        }
+    }
 
     communication_state = Waiting;
-    std::cout<< "SENT" << std::endl;
+
+    std::cout<< "SENT SUCCESFULLY" << std::endl;
     return 0;   // sucesso
 }
 
@@ -97,36 +160,54 @@ Message ReliableComm::receive_single_msg() {
     return msg;
 }
 
+Message ReliableComm::recv_contents(int received_sender_id) {
+    std::cout<< "sending ack" << std::endl;
+    channels->send_message(received_sender_id, std::vector<uint8_t>{'A', 'C', 'K'});
+    std::cout<< "ack sent" << std::endl;
+
+    std::cout<< "waiting msg" << std::endl;
+    Message msg = receive_single_msg(); // recebe MESSAGE
+    std::cout<< "msg received" << std::endl;
+
+    return msg;
+}
+
 Message ReliableComm::receive() {
-    Message msg = receive_single_msg();
-    int received_sender_id = msg.sender_id;
-    std::cout<< "received syn" << std::endl;
-
     bool loop = true;
-    // Esta execução inicia ao receber SYN
-    //int received_sender_id = msg.sender_id;
-    std::cout<< "checking syn" << std::endl;
-    if (msg.content == std::vector<uint8_t>{'S', 'Y', 'N'}) {
-        while (loop) {
-            std::cout<< "loop entered, sending ack" << std::endl;
-            channels->send_message(received_sender_id, std::vector<uint8_t>{'A', 'C', 'K'});
-            std::cout<< "ack sent" << std::endl;
-            // int counter = 0;
-            // while (counter<5) {
-            //     std::cout<< "rewaiting for SYN" << std::endl;
-            //     msg = receive_single_msg(); // recebe SYN
-            //     std::cout<< "message received, " << std::endl;
-            //     channels->send_message(received_sender_id, std::vector<uint8_t>{'A', 'C', 'K'});    // reenvia ACK
-            //     counter++;
-            // }
-            // if (counter==5) {break;}    // falha
+    Message msg = receive_single_msg();
+    while (loop) {
+        int received_sender_id = msg.sender_id;
+        std::cout<< "received new message" << std::endl;
 
-            //counter = 0;
-            std::cout<< "receive msg" << std::endl;
-            msg = receive_single_msg(); // recebe MESSAGE
+        // Esta execução inicia ao receber SYN
+        std::cout<< "checking ifsyn" << std::endl;
+        if (msg.content == std::vector<uint8_t>{'S', 'Y', 'N'}) {
+            std::cout<< "it is syn, loop entered, sending ack" << std::endl;
+
+            std::future_status status;
+            
+            std::future<Message> future = std::async(std::launch::async, [this, received_sender_id]() {
+                return recv_contents(received_sender_id);
+            });
+
+            status = future.wait_for(std::chrono::milliseconds(1000));
+
+            if (status == std::future_status::timeout) {
+                // send_syn() is not complete.
+                std::cout<< "timeout on msg" << std::endl;
+                loop = true;
+            } else if (status == std::future_status::ready) {
+                // send_syn() is complete.
+                std::cout<< "no timeout on msg" << std::endl;
+                msg = future.get();
+                loop = false;
+            }
+
             std::cout<< "send CLOSE" << std::endl;
             channels->send_message(received_sender_id, std::vector<uint8_t>{'C', 'L', 'O', 'S', 'E'});
             loop = false;
+        } else {
+            msg = receive_single_msg();
         }
     }
     std::cout<< "exiting receive()" << std::endl;
