@@ -18,7 +18,7 @@ ReliableComm::ReliableComm(int id, const std::map<int, std::pair<std::string, in
     // Initialize Channels and FailureDetection
     channels = new Channels(nodes);
     channels->bind_socket(id);
-    failure_detection = new FailureDetection(5);
+    //failure_detection = new FailureDetection(5);
 
     // Create listener thread
     std::thread listener(&ReliableComm::listen, this);
