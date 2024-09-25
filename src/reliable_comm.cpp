@@ -89,6 +89,9 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
             if (received.content != std::vector<uint8_t>{'A', 'C', 'K'}) {
                 std::cout<< "received message other than ACK" << std::endl;
                 loop = true;
+            } else if (received.sender_id != id) {
+                std::cout<< "received message not from target" << std::endl;
+                loop = true;
             } else if (counter >= RETRY_COUNTER) {
                 std::cout<< "exceeded retry limit, aborting communication" << std::endl;
                 return -1;  // failure to send message
@@ -119,6 +122,9 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
             received = future.get();
             if (received.content != std::vector<uint8_t>{'C', 'L','O','S','E'}) {
                 std::cout<< "received message other than CLOSE" << std::endl;
+                loop = true;
+            } else if (received.sender_id != id) {
+                std::cout<< "received message not from target" << std::endl;
                 loop = true;
             } else if (counter >= RETRY_COUNTER) {
                 std::cout<< "exceeded retry limit, aborting communication" << std::endl;
@@ -185,9 +191,6 @@ Message ReliableComm::receive() {
     bool loop = true;
     bool inner_loop = true;
     Message msg = receive_single_msg();
-    for (auto byte : msg.content) {
-        std::cout << byte << std::endl;
-    }
     int received_sender_id = msg.sender_id;
     std::cout<< "received new message" << std::endl;
 
@@ -218,8 +221,10 @@ Message ReliableComm::receive() {
                     // send_ack() is complete.
                     std::cout<< "no timeout on msg" << std::endl;
                     msg = future.get();
-                    loop = false;
-                    inner_loop = false;
+                    if (msg.sender_id == received_sender_id) {
+                        loop = false;
+                        inner_loop = false;
+                    }
                 }
             }
 
@@ -233,7 +238,7 @@ Message ReliableComm::receive() {
             msg = receive_single_msg();
         }
     }
-    std::cout<< "exiting receive()" << std::endl;
+    std::cout << "exiting receive()" << std::endl;
     return msg;
 }
 
