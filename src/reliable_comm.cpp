@@ -42,7 +42,7 @@ void ReliableComm::broadcast(const std::vector<uint8_t>& message) {
 int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
     communication_state = SendSYN;
     //Message received;// = new Message(-1,std::vector<uint8_t>{});
-    int counter = 0;
+    //int counter = 0;
 
     std::cout<< "sending syn" << std::endl;
     channels->send_message(id, std::vector<uint8_t>{'S', 'Y', 'N'});    // envia SYN
@@ -50,38 +50,14 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
     // recebe ACK
     std::cout<< "waiting for ack" << std::endl;
     Message received = receive_single_msg();
-    while (received.content != std::vector<uint8_t>{'A', 'C', 'K'} && counter<5) {
-        // Caso receba outra mensagem OR timeout
-        std::cout<< "resending syn" << std::endl;
-        channels->send_message(id, std::vector<uint8_t>{'S', 'Y', 'N'});    // reenvia SYN
-
-        // recebe ACK
-        std::cout<< "rewaiting for ack" << std::endl;
-        received = receive_single_msg();
-
-        counter++;
-    }
     std::cout<< "ack received" << std::endl;
-    if (counter==5) {
-        std::cout<< "ERROR" << std::endl;
-        return -1;
-    }    // falha no envio
 
     communication_state = SendMESSAGE;
-    counter = 0;
+    //counter = 0;
     std::cout<< "send msg" << std::endl;
     channels->send_message(id, message);    // envia MESSAGE
     std::cout<< "receive CLOSE" << std::endl;
     received = receive_single_msg();     // recebe CLOSE
-    while (received.content != std::vector<uint8_t>{'C', 'L', 'O', 'S', 'E'} && counter<5) {
-        // Caso receba outra mensagem OR timeout
-        std::cout<< "Resend msg" << std::endl;
-        channels->send_message(id, message);    // reenvia MESSAGE
-        std::cout<< "close rereceived" << std::endl;
-        received = receive_single_msg();     // recebe CLOSE
-        counter++;
-    }
-    if (counter==5) {return -1;}    // falha no envio
 
     communication_state = Waiting;
     std::cout<< "SENT" << std::endl;
