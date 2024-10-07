@@ -39,6 +39,7 @@ void ReliableComm::broadcast(const std::vector<uint8_t>& message) {
     }
 }
 
+// start handshake
 Message ReliableComm::send_syn_and_wait_ack(int id) {
     std::cout<< "sending syn" << std::endl;
     channels->send_message(id, process_id, std::vector<uint8_t>{'S', 'Y', 'N'});    // envia SYN
@@ -174,6 +175,7 @@ Message ReliableComm::receive_single_msg() {
     return msg;
 }
 
+
 Message ReliableComm::send_ack_recv_contents(int received_sender_id) {
     std::cout<< "sending ack" << std::endl;
     channels->send_message(received_sender_id, process_id, std::vector<uint8_t>{'A', 'C', 'K'});
@@ -240,6 +242,22 @@ Message ReliableComm::receive() {
     }
     std::cout << "exiting receive()" << std::endl;
     return msg;
+}
+
+void ReliableComm::beb_broadcast(const std::vector<int> id_list, const std::vector<uint8_t> message) {
+    for (int i = 0; i < id_list.size(); i++) {
+        send(id_list[i], message)
+    }
+}
+
+int ReliableComm::urb_broadcast(const std::vector<int> id_list, const std::vector<uint8_t> message) {
+    int status;
+    for (int i = 0; i < id_list.size(); i++) {
+        status = send_message(id_list[i], message);
+        // TODO: prevent delivering to previous processes if one fails.
+        if (status == -1) { return -1; }
+    }
+    return 0;
 }
 
 Message ReliableComm::deliver() {
