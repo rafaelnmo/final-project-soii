@@ -52,25 +52,25 @@ int ReliableComm::broadcast(const std::vector<uint8_t>& message) {
 
 // start handshake
 Message ReliableComm::send_syn_and_wait_ack(int id) {
-    std::cout<< "sending syn" << std::endl;
+    //std::cout<< "sending syn" << std::endl;
     channels->send_message(id, process_id, std::vector<uint8_t>{'S', 'Y', 'N'});    // envia SYN
-    std::cout<< "syn sent" << std::endl;
+    //std::cout<< "syn sent" << std::endl;
 
-    std::cout<< "waiting for ack" << std::endl;
+    //std::cout<< "waiting for ack" << std::endl;
     Message received = receive_single_msg();    // recebe ACK
-    std::cout<< "ack received" << std::endl;
+    //std::cout<< "ack received" << std::endl;
 
     return received;
 }
 
 Message ReliableComm::send_contents_and_wait_close(int id, const std::vector<uint8_t>& message) {
-    std::cout<< "send contents" << std::endl;
+    //std::cout<< "send contents" << std::endl;
     channels->send_message(id, process_id, message);    // envia MESSAGE
-    std::cout<< "contents received" << std::endl;
+    //std::cout<< "contents received" << std::endl;
 
-    std::cout<< "receive CLOSE" << std::endl;
+    //std::cout<< "receive CLOSE" << std::endl;
     Message received = receive_single_msg();     // recebe CLOSE
-    std::cout<< "CLOSE received" << std::endl;
+    //std::cout<< "CLOSE received" << std::endl;
 
     return received;
 }
@@ -185,13 +185,13 @@ Message ReliableComm::receive_single_msg() {
 
 
 Message ReliableComm::send_ack_recv_contents(int received_sender_id) {
-    std::cout<< "sending ack" << std::endl;
+    //std::cout<< "sending ack" << std::endl;
     channels->send_message(received_sender_id, process_id, std::vector<uint8_t>{'A', 'C', 'K'});
-    std::cout<< "ack sent" << std::endl;
+    //std::cout<< "ack sent" << std::endl;
 
-    std::cout<< "waiting msg" << std::endl;
+    //std::cout<< "waiting msg" << std::endl;
     Message msg = receive_single_msg(); // recebe MESSAGE
-    std::cout<< "msg received" << std::endl;
+    //std::cout<< "msg received" << std::endl;
     return msg;
 }
 
