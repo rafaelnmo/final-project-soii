@@ -1,5 +1,6 @@
 #include "reliable_comm.h"
 #include "channels.h"
+#include "timeout.h"
 #include <cstring>
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -9,7 +10,8 @@
 #include <future>
 
 #define MAX_BUFFER_SIZE 1024
-#define RETRY_COUNTER 5
+#define RETRY_COUNTER 2
+#define TIMEOUT_TIMER 1
 
 ReliableComm::ReliableComm(int id, const std::map<int, std::pair<std::string, int>>& nodes, const std::string broadcast_type)
     : process_id(id), nodes(nodes), broadcast_type(broadcast_type) {
@@ -74,75 +76,72 @@ Message ReliableComm::send_contents_and_wait_close(int id, const std::vector<uin
 }
 
 int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
-    std::future_status status;
-
     communication_state = SendSYN;
     bool loop = true;
     Message received;
     int counter = 0;
     while (loop) {
-        std::future<Message> future = std::async(std::launch::async, [this, id]() {
-            return send_syn_and_wait_ack(id);
-        });
-
-        status = future.wait_for(std::chrono::milliseconds(1000));
-
-        if (status == std::future_status::timeout) {
-            // send_syn() is not complete.
-            std::cout<< "timeout on syn" << std::endl;
-            loop = true;
+        try {
+            Timeout timeout(TIMEOUT_TIMER);
+            timeout.start();
+            received =  send_syn_and_wait_ack(id);
+        } catch (Timeout * t) {
+            std::cout << "Timeout on send syn and wait ack" << std::endl;
             counter++;
-        } else if (status == std::future_status::ready) {
-            // send_syn() is complete.
-            std::cout<< "no timeout on syn" << std::endl;
-            received = future.get();
-            if (received.content != std::vector<uint8_t>{'A', 'C', 'K'}) {
-                std::cout<< "received message other than ACK" << std::endl;
-                loop = true;
-            } else if (received.sender_id != id) {
-                std::cout<< "received message not from target" << std::endl;
-                loop = true;
-            } else if (counter >= RETRY_COUNTER) {
+            if (counter >= RETRY_COUNTER) {
                 std::cout<< "exceeded retry limit, aborting communication" << std::endl;
-                return -1;  // failure to send message
-            } else {
-                loop = false;
+                return -1;
             }
+            continue;
+        }
+
+        // send_syn() is complete.
+        std::cout<< "no timeout on syn" << std::endl;
+        if (received.content != std::vector<uint8_t>{'A', 'C', 'K'}) {
+            std::cout<< "received message other than ACK" << std::endl;
+            loop = true;
+        } else if (received.sender_id != id) {
+            std::cout<< "received message not from target" << std::endl;
+            loop = true;
+        } else {
+            loop = false;
         }
     }
+
     loop = true;
-    
+    counter = 0;
     communication_state = SendMESSAGE;
 
     while (loop) {
-        std::future<Message> future = std::async(std::launch::async, [this, id, message]() {
-            return send_contents_and_wait_close(id, message);
-        });
-
-        status = future.wait_for(std::chrono::milliseconds(1000));
-
-        if (status == std::future_status::timeout) {
-            // send_syn() is not complete.
-            std::cout<< "timeout on contents" << std::endl;
-            loop = true;
+        try {
+            Timeout timeout(TIMEOUT_TIMER);
+            timeout.start();
+            received = send_contents_and_wait_close(id, message);
+        } catch (Timeout * t) {
+            std::cout << "Timeout on send contents and wait close" << std::endl;
             counter++;
-        } else if (status == std::future_status::ready) {
-            // send_syn() is complete.
-            std::cout<< "no timeout on contents" << std::endl;
-            received = future.get();
-            if (received.content != std::vector<uint8_t>{'C', 'L','O','S','E'}) {
-                std::cout<< "received message other than CLOSE" << std::endl;
-                loop = true;
-            } else if (received.sender_id != id) {
-                std::cout<< "received message not from target" << std::endl;
-                loop = true;
-            } else if (counter >= RETRY_COUNTER) {
+            if (counter >= RETRY_COUNTER) {
                 std::cout<< "exceeded retry limit, aborting communication" << std::endl;
-                return -1;  // failure to send message
-            } else {
-                loop = false;
+                return -1;
             }
+            continue;
         }
+
+        // send_syn() is complete.
+        std::cout<< "no timeout on contents" << std::endl;
+        if (received.content != std::vector<uint8_t>{'C', 'L','O','S','E'}) {
+            std::cout<< "received message other than CLOSE" << std::endl;
+            loop = true;
+        } else if (received.sender_id != id) {
+            std::cout<< "received message not from target" << std::endl;
+            loop = true;
+        } else if (counter >= RETRY_COUNTER) {
+            std::cout<< "exceeded retry limit, aborting communication" << std::endl;
+            return -1;  // failure to send message
+        } else {
+            loop = false;
+        }
+    
     }
 
     communication_state = Waiting;
@@ -193,7 +192,6 @@ Message ReliableComm::send_ack_recv_contents(int received_sender_id) {
     std::cout<< "waiting msg" << std::endl;
     Message msg = receive_single_msg(); // recebe MESSAGE
     std::cout<< "msg received" << std::endl;
-
     return msg;
 }
 
@@ -201,6 +199,7 @@ Message ReliableComm::receive() {
     int counter = 0;
     bool loop = true;
     bool inner_loop = true;
+
     Message msg = receive_single_msg();
     int received_sender_id = msg.sender_id;
     std::cout<< "received new message" << std::endl;
@@ -209,17 +208,13 @@ Message ReliableComm::receive() {
         std::cout<< "checking if syn" << std::endl;
         if (msg.content == std::vector<uint8_t>{'S', 'Y', 'N'}) {
             std::cout<< "it is syn, loop entered, sending ack" << std::endl;
-
-            std::future_status status;
             
             while (inner_loop) {
-                std::future<Message> future = std::async(std::launch::async, [this, received_sender_id]() {
-                    return send_ack_recv_contents(received_sender_id);
-                });
-
-                status = future.wait_for(std::chrono::milliseconds(1000));
-
-                if (status == std::future_status::timeout) {
+                try {
+                    Timeout timeout(TIMEOUT_TIMER);
+                    timeout.start();
+                    msg = send_ack_recv_contents(received_sender_id);
+                } catch (Timeout * t) {
                     // send_ack() is not complete.
                     std::cout<< "timeout on msg" << std::endl;
                     loop = true;
@@ -227,15 +222,15 @@ Message ReliableComm::receive() {
                     if (counter >= RETRY_COUNTER) {
                         std::cout<< "exceeded retry limit, aborting communication" << std::endl;
                         inner_loop = false;
-                    } 
-                } else if (status == std::future_status::ready) {
-                    // send_ack() is complete.
-                    std::cout<< "no timeout on msg" << std::endl;
-                    msg = future.get();
-                    if (msg.sender_id == received_sender_id) {
-                        loop = false;
-                        inner_loop = false;
                     }
+                }
+                
+                // send_ack() is complete.
+                std::cout<< "no timeout on msg" << std::endl;
+                if (msg.sender_id == received_sender_id) {
+                    std::cout << "Correct sender id" << std::endl;
+                    loop = false;
+                    inner_loop = false;
                 }
             }
 
@@ -267,15 +262,19 @@ int ReliableComm::urb_broadcast(const std::vector<int> id_list, const std::vecto
     std::cout << "Start URB *****" << std::endl;
     int status = beb_broadcast(id_list, message);
 
-    if (status) {
+    std::cout << "Status: "<< status<<" *****" << std::endl;
+    std::cout << "Send URB signal *****" << std::endl;
+
+    if (!status) {
         // Send ACK deliver
-        std::vector<uint8_t> signal = {'A', 'C', 'K'};
+        std::cout << "DEL *****" << std:: endl;
+        beb_broadcast(id_list, std::vector<uint8_t>{'D', 'E', 'L'});
     } else {
         // Send NACK deliver
-        std::vector<uint8_t> signal = {'N', 'A', 'C', 'K'};
+        std::cout << "NDEL *****" << std:: endl;
+        beb_broadcast(id_list, std::vector<uint8_t>{'N','D', 'E', 'L'});
     }
 
-    beb_broadcast(id_list, message);
     std::cout << "End URB*****" << std::endl;
     return status;
 }
@@ -290,13 +289,14 @@ Message ReliableComm::deliver() {
         }
 
         std::cout << "Wait URB signal *****" << std::endl;
-        Message signal = receive();
 
-        if (signal.content == std::vector<uint8_t>{'A', 'C', 'K'}) {
-            std::cout << "ACK *****" << std::endl;
+        Message urb_sign = receive();
+        
+        if (urb_sign.content == std::vector<uint8_t>{'D', 'E', 'L'}) {
+            std::cout << "DEL *****" << std::endl;
             return msg;
-        } else if (signal.content == std::vector<uint8_t>{'N', 'A', 'C', 'K'}) {
-            std::cout << "NACK *****" << std::endl;
+        } else if (urb_sign.content == std::vector<uint8_t>{'N', 'D', 'E', 'L'}) {
+            std::cout << "NDEL *****" << std::endl;
             continue;
         }
     }
