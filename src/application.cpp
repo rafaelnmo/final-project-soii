@@ -7,14 +7,11 @@ Application::Application(ReliableComm* comm)
 void Application::run(int process_id) {
     // Example usage
     std::vector<uint8_t> message1 = { 'H', 'e', 'l', 'l', 'o' };
-    std::vector<uint8_t> message2 = { 'G','o','o','d','b','y','e'};
     if (process_id==0) {
-        // Send a message to process 1
+        // Send message1
         std::cout << "Broadcasting message1 -----" << std::endl;
         int status = comm->broadcast(message1);
-        std::cout << "Resultado do envio: " << status << std::endl;
-        // std::cout << "Broadcasting message2 -----" << std::endl;
-        // comm->broadcast(message2);
+        std::cout << "Status do envio: " << status << std::endl;
     } else {
         for (int i=0; i<1; i++) {
             // Wait to receive a message
