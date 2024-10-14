@@ -34,6 +34,7 @@ private:
     std::map<int, std::pair<std::string, int>> nodes;
     std::string broadcast_type;
     std::set<int> delivered_messages;
+    int msg_num;
     
     Channels* channels;
     

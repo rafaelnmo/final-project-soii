@@ -15,6 +15,7 @@
 
 ReliableComm::ReliableComm(int id, const std::map<int, std::pair<std::string, int>>& nodes, const std::string broadcast_type)
     : process_id(id), nodes(nodes), broadcast_type(broadcast_type) {
+    msg_num = 0;
     communication_state = Waiting;
     // Initialize Channels
     channels = new Channels(nodes);
@@ -53,7 +54,7 @@ int ReliableComm::broadcast(const std::vector<uint8_t>& message) {
 // start handshake
 Message ReliableComm::send_syn_and_wait_ack(int id) {
     //std::cout<< "sending syn" << std::endl;
-    channels->send_message(id, process_id, std::vector<uint8_t>{'S', 'Y', 'N'});    // envia SYN
+    channels->send_message(id, process_id, msg_num, 1, std::vector<uint8_t>{'S', 'Y', 'N'});    // envia SYN
     //std::cout<< "syn sent" << std::endl;
 
     //std::cout<< "waiting for ack" << std::endl;
@@ -65,7 +66,7 @@ Message ReliableComm::send_syn_and_wait_ack(int id) {
 
 Message ReliableComm::send_contents_and_wait_close(int id, const std::vector<uint8_t>& message) {
     //std::cout<< "send contents" << std::endl;
-    channels->send_message(id, process_id, message);    // envia MESSAGE
+    channels->send_message(id, process_id, msg_num,0, message);    // envia MESSAGE
     //std::cout<< "contents received" << std::endl;
 
     //std::cout<< "receive CLOSE" << std::endl;
@@ -147,6 +148,7 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
     communication_state = Waiting;
 
     std::cout<< "SENT SUCCESFULLY" << std::endl;
+    msg_num++;
     return 0;   // sucesso
 }
 
@@ -186,7 +188,7 @@ Message ReliableComm::receive_single_msg() {
 
 Message ReliableComm::send_ack_recv_contents(int received_sender_id) {
     //std::cout<< "sending ack" << std::endl;
-    channels->send_message(received_sender_id, process_id, std::vector<uint8_t>{'A', 'C', 'K'});
+    channels->send_message(received_sender_id, process_id, msg_num, 1, std::vector<uint8_t>{'A', 'C', 'K'});
     //std::cout<< "ack sent" << std::endl;
 
     //std::cout<< "waiting msg" << std::endl;
@@ -236,7 +238,7 @@ Message ReliableComm::receive() {
 
             if (!inner_loop && !loop) {
                 std::cout<< "send CLOSE" << std::endl;
-                channels->send_message(received_sender_id, process_id, std::vector<uint8_t>{'C', 'L', 'O', 'S', 'E'});
+                channels->send_message(received_sender_id, process_id, msg_num, true, std::vector<uint8_t>{'C', 'L', 'O', 'S', 'E'});
                 loop = false;
             }
         } else {
