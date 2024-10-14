@@ -35,14 +35,14 @@ void Channels::bind_socket(int process_id) {
     }
 }
 
-void Channels::send_message(int id, int process_id, const std::vector<uint8_t>& message) {
+void Channels::send_message(int id, int process_id, int msg_num, uint8_t control_message, const std::vector<uint8_t>& message) {
     struct sockaddr_in dest_addr;
     memset(&dest_addr, 0, sizeof(dest_addr));
     dest_addr.sin_family = AF_INET;
     dest_addr.sin_port = htons(nodes.at(id).second);
     inet_pton(AF_INET, nodes.at(id).first.c_str(), &dest_addr.sin_addr);
 
-    Message msg(process_id, message);
+    Message msg(process_id, msg_num, control_message, message);
     std::vector<uint8_t> new_message = msg.serialize();
 
     int msg_hash = calculate_hash(new_message);
@@ -68,5 +68,5 @@ std::pair<Message, int> Channels::receive_message() {
         return { new_message, msg_hash }; // Adjust sender_id 
     }
 
-    return { Message(0, {}), 0 }; // Return an empty message in case of failure
+    return { Message(0, -1, 1, {}), 0 }; // Return an empty message in case of failure
 }
