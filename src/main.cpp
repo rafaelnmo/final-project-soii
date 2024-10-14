@@ -10,10 +10,11 @@ int main(int argc, char** argv) {
         {2, {"127.0.0.1", 3002}}
     };
 
+    std::string broadcast_type = "UR";
     // Channels channels(nodes);
     // channels.bind_socket(atoi(argv[1]));
 
-    ReliableComm comm(atoi(argv[1]), nodes);
+    ReliableComm comm(atoi(argv[1]), nodes, broadcast_type);
     Application app(&comm);
 
     app.run(atoi(argv[1]));

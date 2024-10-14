@@ -11,8 +11,8 @@
 #define MAX_BUFFER_SIZE 1024
 #define RETRY_COUNTER 5
 
-ReliableComm::ReliableComm(int id, const std::map<int, std::pair<std::string, int>>& nodes)
-    : process_id(id), nodes(nodes) {
+ReliableComm::ReliableComm(int id, const std::map<int, std::pair<std::string, int>>& nodes, const std::string broadcast_type)
+    : process_id(id), nodes(nodes), broadcast_type(broadcast_type) {
     communication_state = Waiting;
     // Initialize Channels
     channels = new Channels(nodes);
@@ -27,16 +27,25 @@ int ReliableComm::get_process_id() {
     return process_id;
 }
 
-void ReliableComm::send(int id, const std::vector<uint8_t>& message) {
-    send_message(id, message);
+int ReliableComm::send(int id, const std::vector<uint8_t>& message) {
+    return send_message(id, message);
 }
 
-void ReliableComm::broadcast(const std::vector<uint8_t>& message) {
-    for (const auto& node : nodes) {
-        if (node.first != process_id) {
-            send_message(node.first, message);
-        }
+int ReliableComm::broadcast(const std::vector<uint8_t>& message) {
+    std::vector<int> id_list;
+
+    for (auto const& [key, val] : this->nodes) {
+        if (key != process_id) {
+            id_list.push_back(key);
+        };
     }
+
+    if (broadcast_type == "BE") {
+        beb_broadcast(id_list,message);
+    } else if (broadcast_type == "UR") {
+        urb_broadcast(id_list,message);
+    }
+    return 0;
 }
 
 // start handshake
@@ -53,9 +62,9 @@ Message ReliableComm::send_syn_and_wait_ack(int id) {
 }
 
 Message ReliableComm::send_contents_and_wait_close(int id, const std::vector<uint8_t>& message) {
-    std::cout<< "send msg" << std::endl;
+    std::cout<< "send contents" << std::endl;
     channels->send_message(id, process_id, message);    // envia MESSAGE
-    std::cout<< "msg received" << std::endl;
+    std::cout<< "contents received" << std::endl;
 
     std::cout<< "receive CLOSE" << std::endl;
     Message received = receive_single_msg();     // recebe CLOSE
@@ -244,22 +253,51 @@ Message ReliableComm::receive() {
     return msg;
 }
 
-void ReliableComm::beb_broadcast(const std::vector<int> id_list, const std::vector<uint8_t> message) {
-    for (int i = 0; i < id_list.size(); i++) {
-        send(id_list[i], message)
+int ReliableComm::beb_broadcast(const std::vector<int> id_list, const std::vector<uint8_t> message) {
+    std::cout << "Start best effort *****" << std::endl;
+    int success = 0;
+    for (const int& id : id_list) {
+        std::min(success, send(id, message));
     }
+    std::cout << "End best effort *****" << std::endl;
+    return success;
 }
 
 int ReliableComm::urb_broadcast(const std::vector<int> id_list, const std::vector<uint8_t> message) {
-    int status;
-    for (int i = 0; i < id_list.size(); i++) {
-        status = send_message(id_list[i], message);
-        // TODO: prevent delivering to previous processes if one fails.
-        if (status == -1) { return -1; }
+    std::cout << "Start URB *****" << std::endl;
+    int status = beb_broadcast(id_list, message);
+
+    if (status) {
+        // Send ACK deliver
+        std::vector<uint8_t> signal = {'A', 'C', 'K'};
+    } else {
+        // Send NACK deliver
+        std::vector<uint8_t> signal = {'N', 'A', 'C', 'K'};
     }
-    return 0;
+
+    beb_broadcast(id_list, message);
+    std::cout << "End URB*****" << std::endl;
+    return status;
 }
 
 Message ReliableComm::deliver() {
-    return receive();
+    while (true) {
+        Message msg = receive();
+
+        if (broadcast_type == "BE") {
+            std::cout << "Deliver best effort *****" << std::endl;
+            return msg;
+        }
+
+        std::cout << "Wait URB signal *****" << std::endl;
+        Message signal = receive();
+
+        if (signal.content == std::vector<uint8_t>{'A', 'C', 'K'}) {
+            std::cout << "ACK *****" << std::endl;
+            return msg;
+        } else if (signal.content == std::vector<uint8_t>{'N', 'A', 'C', 'K'}) {
+            std::cout << "NACK *****" << std::endl;
+            continue;
+        }
+    }
 }
