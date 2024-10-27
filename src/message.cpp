@@ -1,8 +1,8 @@
 #include "message.h"
 #include <iostream>
 
-Message::Message(int sender, int msg_num, uint8_t control_message,const std::vector<uint8_t>& msg)
-    : sender_id(sender), msg_num(msg_num), control_message(control_message), content(msg) {}
+Message::Message(int sender, int msg_num, int sequence_number, uint8_t control_message,const std::vector<uint8_t>& msg)
+    : sender_id(sender), msg_num(msg_num), sequence_number(sequence_number), control_message(control_message), content(msg) {}
 
 Message::Message()
     : sender_id(0), content() {}
