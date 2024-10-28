@@ -39,7 +39,8 @@ void AtomicBroadcastRing::broadcast(const Message& message) {
 
 // Forward message to the next process in the ring
 void AtomicBroadcastRing::forward_message(const Message& message) {
-    reliable_comm->send(next_process, message); // Send the message using reliable broadcast
+    std::vector<uint8_t> serialized_message = message.serialize(); // Serialize the message
+    reliable_comm->send(next_process, serialized_message); // Send the serialized message
 }
 
 void AtomicBroadcastRing::process_received_message(const Message& message) {
