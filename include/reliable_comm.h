@@ -23,14 +23,17 @@ class ReliableComm {
 public:
     ReliableComm(int id, const std::map<int, std::pair<std::string, int>>& nodes, const std::string broadcast_type);
     int send(int id, const std::vector<uint8_t>& message);
-    int broadcast(const std::vector<uint8_t>& message);
+    virtual int broadcast(const std::vector<uint8_t>& message);
     Message receive();
-    Message deliver();
+    virtual Message deliver();
     int get_process_id();
+    void log(const std::string& message, const std::string& level = "INFO");
 
+protected:
+    int process_id;
+    
 private:
     enum State communication_state;
-    int process_id;
     std::map<int, std::pair<std::string, int>> nodes;
     std::string broadcast_type;
     std::set<int> delivered_messages;
@@ -43,7 +46,6 @@ private:
     std::queue<Message> message_queue;
 
     void listen();
-    void log(const std::string& message, const std::string& level = "INFO");
     int send_message(int id, const std::vector<uint8_t>& message);
     bool is_delivered(int msg_hash);
     void mark_delivered(int msg_hash);

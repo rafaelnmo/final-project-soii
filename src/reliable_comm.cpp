@@ -53,6 +53,7 @@ int ReliableComm::broadcast(const std::vector<uint8_t>& message) {
 
 // start handshake
 Message ReliableComm::send_syn_and_wait_ack(int id) {
+
     channels->send_message(id, process_id, msg_num, 0, 1, std::vector<uint8_t>{'S', 'Y', 'N'});    // envia SYN
 
     Message received = receive_single_msg();    // recebe ACK
@@ -73,6 +74,7 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
     bool loop = true;
     Message received;
     int counter = 0;
+    log("send_message");
     while (loop) {
         try {
             Timeout timeout(TIMEOUT_TIMER);
