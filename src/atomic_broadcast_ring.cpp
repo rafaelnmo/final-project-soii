@@ -1,77 +1,36 @@
 #include "atomic_broadcast_ring.h"
 #include <iostream>
 
-// class AtomicBroadcastRing {
-// public:
-//     AtomicBroadcastRing(int process_id, ReliableComm* reliable_comm, const std::map<int, int>& ring);
-//     void broadcast(const Message& message);
-//     Message deliver();
-
-// private:
-//     int process_id;
-//     int next_process; // Next process in the ring
-//     ReliableComm* reliable_comm;
-//     int sequence_number = 0; // Local sequence number for ordering
-
-//     std::mutex mtx;
-//     std::condition_variable cv;
-
-//     std::set<int> delivered_messages; // Track delivered message IDs
-//     std::map<int, Message> pending_messages; // Holds pending messages for delivery
-
-//     void forward_message(const Message& message);
-//     void process_received_message(const Message& message);
-// };
-
-AtomicBroadcastRing::AtomicBroadcastRing(int process_id, ReliableComm* reliable_comm, const std::map<int, int>& ring)
-    : process_id(process_id), reliable_comm(reliable_comm) {
-    next_process = ring.at(process_id); // Find the next process in the ring
-}
-
-// Broadcast message by circulating it through the ring
-void AtomicBroadcastRing::broadcast(const Message& message) {
-    // Set sequence number for this message
-    Message ordered_message = message;
-    ordered_message.sequence_number = ++sequence_number; // Update sequence number
-
-    forward_message(ordered_message);
-}
-
-// Forward message to the next process in the ring
-void AtomicBroadcastRing::forward_message(const Message& message) {
-    std::vector<uint8_t> serialized_message = message.serialize(); 
-    reliable_comm->send(next_process, serialized_message); 
-}
-
-void AtomicBroadcastRing::process_received_message(const Message& message) {
-    std::unique_lock<std::mutex> lock(mtx);
-
-    // Check if this message has already been delivered
-    if (delivered_messages.find(message.sequence_number) != delivered_messages.end()) {
-        return;
+AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<std::string, int>>& nodes)
+    : ReliableComm(id, nodes, "AB") {
+    // Determine the next node in the ring
+    auto it = nodes.find(id);
+    if (++it == nodes.end()) {
+        it = nodes.begin();
     }
-
-    // Add message to pending messages and mark it as delivered
-    delivered_messages.insert(message.sequence_number);
-    pending_messages[message.sequence_number] = message;
-
-    if (message.sender_id != process_id) {
-        forward_message(message);
-    }
-
-    // Notify that a new message is ready for delivery
-    cv.notify_one();
+    next_node_id = it->first;
 }
 
-// Deliver messages in agreed order
+int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message) {
+    log("AB: Broadcasting message to node " + std::to_string(next_node_id));
+    //std::cout << "Atomic Broadcast Ring: Broadcasting message to node " << next_node_id << std::endl;
+    send(next_node_id, message);
+    return 0;
+}
+
 Message AtomicBroadcastRing::deliver() {
-    std::unique_lock<std::mutex> lock(mtx);
-    cv.wait(lock, [this] { return !pending_messages.empty(); });
+    while (true) {
+        Message msg = receive();
 
-    // Retrieve the next message in order
-    auto it = pending_messages.begin();
-    Message next_message = it->second;
-    pending_messages.erase(it); // Remove from pending
+        // Deliver message to application
+        log("AB: Delivering message from node "  + std::to_string(msg.sender_id ));
 
-    return next_message;
+        //std::cout << "Atomic Broadcast Ring: Delivering message from node " << msg.sender_id << std::endl;
+
+        // Forward the message to the next node in the ring unless it's the sender
+        if (msg.sender_id != process_id) {
+            send(next_node_id, msg.content);
+        }
+        return msg;
+    }
 }
