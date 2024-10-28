@@ -37,7 +37,7 @@ void Application::run(int process_id, const std::string& broadcast_type) {
         std::cout << "Executando Atomic Broadcast\n";
         atomic_broadcast_run(process_id);
     } else {
-        std::cerr << "Tipo de broadcast desconhecido. Escolha 'reliable' ou 'atomic'.\n";
+        std::cerr << "Tipo de broadcast desconhecido. Escolha 'BE', 'UR' ou 'AB'.\n";
     }
 }
 
