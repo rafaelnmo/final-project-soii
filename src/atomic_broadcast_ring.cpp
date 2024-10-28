@@ -13,7 +13,6 @@ AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<s
 
 int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message) {
     log("AB: Broadcasting message to node " + std::to_string(next_node_id));
-    //std::cout << "Atomic Broadcast Ring: Broadcasting message to node " << next_node_id << std::endl;
     send(next_node_id, message);
     return 0;
 }
@@ -24,8 +23,6 @@ Message AtomicBroadcastRing::deliver() {
 
         // Deliver message to application
         log("AB: Delivering message from node "  + std::to_string(msg.sender_id ));
-
-        //std::cout << "Atomic Broadcast Ring: Delivering message from node " << msg.sender_id << std::endl;
 
         // Forward the message to the next node in the ring unless it's the sender
         if (msg.sender_id != process_id) {
