@@ -1,29 +1,28 @@
 #include "atomic_broadcast_ring.h"
 #include <iostream>
 
-class AtomicBroadcastRing {
-public:
-    AtomicBroadcastRing(int process_id, ReliableComm* reliable_comm, const std::map<int, int>& ring);
-    void broadcast(const Message& message);
-    Message deliver();
+// class AtomicBroadcastRing {
+// public:
+//     AtomicBroadcastRing(int process_id, ReliableComm* reliable_comm, const std::map<int, int>& ring);
+//     void broadcast(const Message& message);
+//     Message deliver();
 
-private:
-    int process_id;
-    int next_process; // Next process in the ring
-    ReliableComm* reliable_comm;
-    int sequence_number = 0; // Local sequence number for ordering
+// private:
+//     int process_id;
+//     int next_process; // Next process in the ring
+//     ReliableComm* reliable_comm;
+//     int sequence_number = 0; // Local sequence number for ordering
 
-    std::mutex mtx;
-    std::condition_variable cv;
+//     std::mutex mtx;
+//     std::condition_variable cv;
 
-    std::set<int> delivered_messages; // Track delivered message IDs
-    std::map<int, Message> pending_messages; // Holds pending messages for delivery
+//     std::set<int> delivered_messages; // Track delivered message IDs
+//     std::map<int, Message> pending_messages; // Holds pending messages for delivery
 
-    void forward_message(const Message& message);
-    void process_received_message(const Message& message);
-};
+//     void forward_message(const Message& message);
+//     void process_received_message(const Message& message);
+// };
 
-// Constructor
 AtomicBroadcastRing::AtomicBroadcastRing(int process_id, ReliableComm* reliable_comm, const std::map<int, int>& ring)
     : process_id(process_id), reliable_comm(reliable_comm) {
     next_process = ring.at(process_id); // Find the next process in the ring
@@ -35,13 +34,12 @@ void AtomicBroadcastRing::broadcast(const Message& message) {
     Message ordered_message = message;
     ordered_message.sequence_number = ++sequence_number; // Assign sequence number
 
-    // Forward message to next process in the ring
     forward_message(ordered_message);
 }
 
 // Forward message to the next process in the ring
 void AtomicBroadcastRing::forward_message(const Message& message) {
-    reliable_comm->send_message(next_process, message); // Send the message using reliable broadcast
+    reliable_comm->send(next_process, message); // Send the message using reliable broadcast
 }
 
 void AtomicBroadcastRing::process_received_message(const Message& message) {
