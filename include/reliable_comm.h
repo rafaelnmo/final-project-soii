@@ -43,6 +43,7 @@ private:
     std::queue<Message> message_queue;
 
     void listen();
+    void log(const std::string& message, const std::string& level = "INFO");
     int send_message(int id, const std::vector<uint8_t>& message);
     bool is_delivered(int msg_hash);
     void mark_delivered(int msg_hash);
