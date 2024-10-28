@@ -32,15 +32,15 @@ AtomicBroadcastRing::AtomicBroadcastRing(int process_id, ReliableComm* reliable_
 void AtomicBroadcastRing::broadcast(const Message& message) {
     // Set sequence number for this message
     Message ordered_message = message;
-    ordered_message.sequence_number = ++sequence_number; // Assign sequence number
+    ordered_message.sequence_number = ++sequence_number; // Update sequence number
 
     forward_message(ordered_message);
 }
 
 // Forward message to the next process in the ring
 void AtomicBroadcastRing::forward_message(const Message& message) {
-    std::vector<uint8_t> serialized_message = message.serialize(); // Serialize the message
-    reliable_comm->send(next_process, serialized_message); // Send the serialized message
+    std::vector<uint8_t> serialized_message = message.serialize(); 
+    reliable_comm->send(next_process, serialized_message); 
 }
 
 void AtomicBroadcastRing::process_received_message(const Message& message) {
