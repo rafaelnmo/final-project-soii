@@ -80,11 +80,11 @@ Se __my_project__ estiver presente, a compilação foi bem-sucedida.
 
 Agora que você tem o executável, você pode executá-lo diretamente no terminal. Abra dois terminais e execute duas aplicações que irão se comunicar:
 ```bash
-./my_project 1
+./my_project 1 AB
 ```
 
 ```bash
-./my_project 0
+./my_project 0 AB
 ```
 
 ## Passo 4: Limpeza dos Arquivos de Build
