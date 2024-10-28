@@ -36,6 +36,7 @@ void Channels::bind_socket(int process_id) {
 }
 
 void Channels::send_message(int id, int process_id, int msg_num, int sequence_number, uint8_t control_message, const std::vector<uint8_t>& message) {
+
     struct sockaddr_in dest_addr;
     memset(&dest_addr, 0, sizeof(dest_addr));
     dest_addr.sin_family = AF_INET;

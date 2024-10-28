@@ -8,7 +8,7 @@
 struct Message {
     int sender_id;
     int msg_num;
-    int sequence_number;
+    int sequence_number = 0;
     uint8_t control_message;
     std::vector<uint8_t> content;
     
