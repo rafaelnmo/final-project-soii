@@ -11,10 +11,34 @@ AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<s
     next_node_id = it->first;
 }
 
+// int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message) {
+//     log("AB: Broadcasting message to node " + std::to_string(next_node_id));
+//     send(next_node_id, message);
+//     return 0;
+// }
+
 int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message) {
-    log("AB: Broadcasting message to node " + std::to_string(next_node_id));
-    send(next_node_id, message);
-    return 0;
+    int attempt_count = 0;
+    const int max_attempts = 3; // Máximo de tentativas
+
+    while (attempt_count < max_attempts) {
+        log("Tentativa de broadcast #" + std::to_string(attempt_count + 1) + " para o nó " + std::to_string(next_node_id));
+        
+        log("next_node: " + std::to_string(next_node_id));
+        // Tenta enviar a mensagem para o próximo nó
+        int result = send(next_node_id, message);
+
+        if (result == 0) {
+            log("Mensagem enviada com sucesso para o nó " + std::to_string(next_node_id));
+            return 0; // Sucesso, mensagem enviada
+        } else {
+            log("Falha ao enviar mensagem na tentativa #" + std::to_string(attempt_count + 1), "WARNING");
+            attempt_count++;
+        }
+    }
+
+    log("Falha ao entregar a mensagem após " + std::to_string(max_attempts) + " tentativas.", "ERROR");
+    return -1; 
 }
 
 Message AtomicBroadcastRing::deliver() {
