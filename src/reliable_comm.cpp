@@ -7,7 +7,6 @@
 #include <unistd.h>
 #include <thread>
 #include <iostream>
-#include <future>
 
 #define MAX_BUFFER_SIZE 1024
 #define RETRY_COUNTER 2
@@ -74,6 +73,12 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
     bool loop = true;
     Message received;
     int counter = 0;
+
+    sigset_t newmask, oldmask;
+    sigemptyset(&newmask);
+    sigaddset(&newmask, SIGALRM);
+    pthread_sigmask(SIG_BLOCK, &newmask, &oldmask);
+
     log("send_message");
     while (loop) {
         try {
