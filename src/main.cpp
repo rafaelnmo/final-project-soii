@@ -19,8 +19,11 @@ int main(int argc, char** argv) {
     if (broadcast_type == "AB") {
         std::cout << "----- Executando Atomic Broadcast -----\n";
         comm = new AtomicBroadcastRing(atoi(argv[1]), nodes);
-    } else {
-        std::cout << "----- Executando Reliable Broadcast -----\n";
+    } else if(broadcast_type == "BE"){
+        std::cout << "----- Executando Best Effort Broadcast -----\n";
+        comm = new ReliableComm(atoi(argv[1]), nodes, broadcast_type);
+    } else if(broadcast_type == "UR"){
+        std::cout << "----- Executando Uniform Reliable Broadcast -----\n";
         comm = new ReliableComm(atoi(argv[1]), nodes, broadcast_type);
     }
 
