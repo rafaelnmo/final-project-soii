@@ -57,6 +57,7 @@ private:
 
     int beb_broadcast(const std::vector<int> id_list, const std::vector<uint8_t> message);
     int urb_broadcast(const std::vector<int> id_list, const std::vector<uint8_t> message);
+    static void signalHandler(int signum);
 };
 
 #endif

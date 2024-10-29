@@ -7,10 +7,14 @@
 #include <unistd.h>
 #include <thread>
 #include <iostream>
+#include <csignal>
+#include <csetjmp>
 
 #define MAX_BUFFER_SIZE 1024
-#define RETRY_COUNTER 2
+#define RETRY_COUNTER 3
 #define TIMEOUT_TIMER 1
+
+jmp_buf jumpBuffer;
 
 ReliableComm::ReliableComm(int id, const std::map<int, std::pair<std::string, int>>& nodes, const std::string broadcast_type)
     : process_id(id), nodes(nodes), broadcast_type(broadcast_type) {
@@ -50,6 +54,11 @@ int ReliableComm::broadcast(const std::vector<uint8_t>& message) {
     return 0;
 }
 
+void ReliableComm::signalHandler(int signum) {
+    std::cout << "Timeout reached! Returning from blocking function.\n";
+    longjmp(jumpBuffer, 1);  // Jump back to the saved state
+}
+
 // start handshake
 Message ReliableComm::send_syn_and_wait_ack(int id) {
 
@@ -74,77 +83,91 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
     Message received;
     int counter = 0;
 
+    std::cout << loop;
     sigset_t newmask, oldmask;
     sigemptyset(&newmask);
     sigaddset(&newmask, SIGALRM);
     pthread_sigmask(SIG_BLOCK, &newmask, &oldmask);
 
     log("send_message");
-    while (loop) {
-        try {
-            Timeout timeout(TIMEOUT_TIMER);
-            timeout.start();
-            received =  send_syn_and_wait_ack(id);
-        } catch (Timeout * t) {
-            log("timeout on send syn and wait ack", "WARNING");
+    while (counter < RETRY_COUNTER) {
+        if (setjmp(jumpBuffer) == 0) {
             counter++;
-            if (counter >= RETRY_COUNTER) {
-                log("exceeded retry limit, aborting communication", "ERROR");
-                return -1;
-            }
-            continue;
-        }
 
-        // send_syn() is complete.
-        log("no timeout on syn", "DEBUG");
-        if (received.content != std::vector<uint8_t>{'A', 'C', 'K'}) {
-            log("received message other than ACK", "ERROR");
-            loop = true;
-        } else if (received.sender_id != id) {
-            log("received message not from target", "ERROR");
-            loop = true;
+            std::signal(SIGALRM, signalHandler);
+            pthread_sigmask(SIG_UNBLOCK, &newmask, nullptr);
+            ualarm(std::min(TIMEOUT_TIMER * 1000, 1000000), 0);
+
+            received =  send_syn_and_wait_ack(id);  // blocking function
+
+            pthread_sigmask(SIG_UNBLOCK, &oldmask, nullptr);
+            ualarm(0,0);  // Cancel the alarm if function completes in time
+
+            // send_syn() is complete.
+            log("no timeout on syn", "DEBUG");
+            if (received.content != std::vector<uint8_t>{'A', 'C', 'K'}) {
+                log("received message other than ACK", "ERROR");
+            } else if (received.sender_id != id) {
+                log("received message not from target", "ERROR");
+            }
         } else {
-            loop = false;
+            // If longjmp was called, we handle the timeout here
+            std::cout << "Attempt " << counter << " timed out.\n";
+            log("Send SYN timed out", "WARNING");
         }
+    }
+
+    if (counter == RETRY_COUNTER) {
+        log("Retry limit exceeded for SYN, aborting","WARNING");
+        communication_state = Waiting;
+        return -1;
+    } else {
+        log("Send SYN succesfull", "DEBUG");
     }
 
     loop = true;
     counter = 0;
     communication_state = SendMESSAGE;
 
-    while (loop) {
-        try {
-            Timeout timeout(TIMEOUT_TIMER);
-            timeout.start();
-            received = send_contents_and_wait_close(id, message);
-        } catch (Timeout * t) {
-            log("timeout on send contents and wait close", "WARNING");
-            counter++;
-            if (counter >= RETRY_COUNTER) {
-                log("exceeded retry limit, aborting communication", "ERROR");
-                return -1;
-            }
-            continue;
-        }
+    sigemptyset(&newmask);
+    sigaddset(&newmask, SIGALRM);
+    pthread_sigmask(SIG_BLOCK, &newmask, &oldmask);
 
-        // send_syn() is complete.
-        log("no timeout on contents", "DEBUG");
-        if (received.content != std::vector<uint8_t>{'C', 'L','O','S','E'}) {
-            log("received message other than CLOSE","WARNING");
-            loop = true;
-        } else if (received.sender_id != id) {
-            log("received message not from target", "WARNING");
-            loop = true;
-        } else if (counter >= RETRY_COUNTER) {
-            log( "exceeded retry limit, aborting communication", "ERROR");
-            return -1;  // failure to send message
+    while (counter < RETRY_COUNTER) {
+        if (setjmp(jumpBuffer) == 0) {
+            counter++;
+
+            std::signal(SIGALRM, signalHandler);
+            pthread_sigmask(SIG_UNBLOCK, &newmask, nullptr);
+            ualarm(std::min(TIMEOUT_TIMER * 1000, 1000000), 0);
+
+            received = send_contents_and_wait_close(id, message);
+            //log("timeout on send contents and wait close", "WARNING");
+
+            pthread_sigmask(SIG_UNBLOCK, &oldmask, nullptr);
+            ualarm(0,0);  // Cancel the alarm if function completes in time
+
+            log("no timeout on contents", "DEBUG");
+            if (received.content != std::vector<uint8_t>{'C', 'L','O','S','E'}) {
+                log("received message other than CLOSE","WARNING");
+            } else if (received.sender_id != id) {
+                log("received message not from target", "WARNING");
+            }
         } else {
-            loop = false;
+            // If longjmp was called, we handle the timeout here
+            std::cout << "Attempt " << counter << " timed out.\n";
+            log("Send CONTENTS timed out", "WARNING");
         }
-    
     }
 
     communication_state = Waiting;
+
+    if (counter == RETRY_COUNTER) {
+        log("Retry limit exceeded for CONTENTS, aborting","WARNING");
+        return -1;
+    } else {
+        log("Send CONTENTS succesfull", "DEBUG");
+    }
 
     log("SENT SUCCESFULLY");
     msg_num++;
