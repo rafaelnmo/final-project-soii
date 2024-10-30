@@ -1,6 +1,5 @@
 #include "reliable_comm.h"
 #include "channels.h"
-#include "timeout.h"
 #include <cstring>
 #include <arpa/inet.h>
 #include <sys/socket.h>
