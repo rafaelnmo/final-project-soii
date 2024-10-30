@@ -12,17 +12,17 @@ void Application::run(int process_id) {
 
     if (process_id==0) {
 
-        std::cout << "Broadcasting message1 -----" << std::endl;
+        std::cout << "\n-----Broadcasting message1 -----" << std::endl;
         int status = comm->broadcast(message1);
-        std::cout << "Status do envio: " << status << std::endl;
+        std::cout << "[DEBUG] Status do envio: " << status << std::endl;
 
-        std::cout << "Broadcasting message2 -----" << std::endl;
+        std::cout << "\n-----Broadcasting message2 -----" << std::endl;
         status = comm->broadcast(message2);
-        std::cout << "Status do envio: " << status << std::endl;
+        std::cout << "[DEBUG] Status do envio: " << status << std::endl;
 
-        std::cout << "Broadcasting message3 -----" << std::endl;
+        std::cout << "\n-----Broadcasting message3 -----" << std::endl;
         status = comm->broadcast(message3);
-        std::cout << "Status do envio: " << status << std::endl;
+        std::cout << "[DEBUG] Status do envio: " << status << std::endl;
 
     } else {
         for (int i=0; i<3; i++) {

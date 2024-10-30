@@ -26,23 +26,23 @@ int AtomicBroadcastRing::broadcast_ring(const std::vector<uint8_t>& message) {
     const int max_attempts = 3; // Máximo de tentativas
 
     while (attempt_count < max_attempts) {
-        log("Tentativa de broadcast #" + std::to_string(attempt_count + 1) + " para o nó " + std::to_string(next_node_id));
+        log("Broadcast attempt #" + std::to_string(attempt_count + 1) + " to node " + std::to_string(next_node_id));
         
         log("next_node: " + std::to_string(next_node_id));
         // Tenta enviar a mensagem para o próximo nó
         int result = send(next_node_id, message);
 
         if (result == 0) {
-            log("Mensagem enviada com sucesso para o nó " + std::to_string(next_node_id));
+            log("Message successfully sent to node " + std::to_string(next_node_id));
             break;
         } else {
-            log("Falha ao enviar mensagem na tentativa #" + std::to_string(attempt_count + 1), "WARNING");
+            log("Failed to send message on attempt #" + std::to_string(attempt_count + 1), "WARNING");
             attempt_count++;
         }
     }
 
     if (attempt_count==max_attempts) {
-        log("Exceeded retry amount", "WARNING");
+        log("Exceeded retry amount", "ERROR");
         return -1;
     }
 

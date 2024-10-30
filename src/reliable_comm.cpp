@@ -54,7 +54,7 @@ int ReliableComm::broadcast(const std::vector<uint8_t>& message) {
 }
 
 void ReliableComm::signalHandler(int signum) {
-    std::cout << "Timeout reached! Returning from blocking function.\n";
+    std::cout << "[WARNING] Timeout reached! Returning from blocking function.\n";
     longjmp(jumpBuffer, 1);  // Jump back to the saved state
 }
 
@@ -115,8 +115,9 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
             pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
             ualarm(0, 0);
             // If longjmp was called, we handle the timeout here
-            std::cout << "Attempt " << counter << " timed out.\n";
-            log("Send SYN timed out", "WARNING");
+            // std::cout << "Attempt " << counter << " timed out.\n";
+            log("Attempt " + std::to_string(counter) + " timed out");
+            log("Send SYN timed out", "DEBUG");
         }
     }
 
