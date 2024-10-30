@@ -5,7 +5,7 @@ Message::Message(int sender, int msg_num, int sequence_number, uint8_t control_m
     : sender_id(sender), msg_num(msg_num), sequence_number(sequence_number), control_message(control_message), content(msg) {}
 
 Message::Message()
-    : sender_id(0), msg_num(0), control_message(0), content() {}
+    : sender_id(-1), msg_num(0), control_message(0), content() {}
 
 std::vector<uint8_t> Message::serialize() const {
     std::vector<uint8_t> serialized;
