@@ -50,18 +50,24 @@ int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message) {
 
     attempt_count = 0;
 
+    int status = 0;
+
     log("waiting for ring to complete", "INFO");
     while (attempt_count< max_attempts) {
         Message msg = receive();
         if (msg.sender_id != -1) {
             log("Ring completed","INFO");
-            return 0;
+            break;
         }
         attempt_count++;
     }
 
-    log("Falha ao entregar a mensagem após " + std::to_string(max_attempts) + " tentativas.", "ERROR");
-    return -1; 
+    if (attempt_count==max_attempts) {
+        status = -1;
+        log("Falha ao entregar a mensagem após " + std::to_string(max_attempts) + " tentativas.", "ERROR");
+    }
+
+    return status; 
 }
 
 Message AtomicBroadcastRing::deliver() {
