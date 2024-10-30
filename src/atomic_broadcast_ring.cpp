@@ -11,14 +11,8 @@ AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<s
     next_node_id = it->first;
 }
 
-// int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message) {
-//     log("AB: Broadcasting message to node " + std::to_string(next_node_id));
-//     send(next_node_id, message);
-//     return 0;
-// }
-
 int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message) {
-    int status = broadcast(message);
+    int status = broadcast_ring(message);
     if (status==0) {
         broadcast_ring(std::vector<uint8_t>{'D','E','L'});
     } else {
@@ -57,16 +51,16 @@ int AtomicBroadcastRing::broadcast_ring(const std::vector<uint8_t>& message) {
     int status = 0;
 
     log("waiting for ring to complete", "INFO");
-    while (attempt_count< max_attempts) {
+    while (attempt_count < max_attempts) {
         Message msg = receive();
-        if (msg.sender_id != -1) {
+        if (msg.sender_id != -1 && (msg.content==message)) {
             log("Ring completed","INFO");
             break;
         }
         attempt_count++;
     }
 
-    if (attempt_count==max_attempts) {
+    if (attempt_count>=max_attempts) {
         status = -1;
         log("Falha ao entregar a mensagem após " + std::to_string(max_attempts) + " tentativas.", "ERROR");
     }
@@ -75,23 +69,36 @@ int AtomicBroadcastRing::broadcast_ring(const std::vector<uint8_t>& message) {
 }
 
 Message AtomicBroadcastRing::deliver() {
-    while (true) {
-        Message msg = receive();
+    Message msg = receive();
 
-        // Deliver message to application
-        log("AB: Delivering message from node "  + std::to_string(msg.sender_id ));
+    // Deliver message to application
+    log("AB: Delivering message from node "  + std::to_string(msg.sender_id ));
 
-        // Forward the message to the next node in the ring unless it's the sender
-        if (msg.sender_id != process_id) {
-            send(next_node_id, msg.content);
-        }
-
-        Message msg = receive();
-
-        if (msg.sender_id != process_id && (msg.content == std::vector<uint8_t>{'D','E','L'}) || msg.content==std::vector<uint8_t>{'N','D','E','L'}) {
-            send(next_node_id, msg.content);
-        }
-
-        return msg;
+    // Forward the message to the next node in the ring unless it's the sender
+    if (msg.sender_id != process_id) {
+        send(next_node_id, msg.content);
     }
+
+    int counter = 0;
+    int max_tries = 3;
+
+    while (counter < max_tries) {
+        log("Waiting signal","INFO");
+        Message signal = receive();
+
+        for (auto byte : signal.content) {
+                std::cout << byte << std::endl;
+            }
+
+        if (msg.sender_id != process_id && (signal.content == std::vector<uint8_t>{'D','E','L'} || signal.content==std::vector<uint8_t>{'N','D','E','L'})) {
+            log("RESEND Signal");
+            send(next_node_id, signal.content);
+            break;
+        } else {
+            counter++;
+            log("Wrong signal","WARNING");
+        }
+    }
+
+    return msg;
 }

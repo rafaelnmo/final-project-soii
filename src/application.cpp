@@ -20,14 +20,18 @@ void Application::run(int process_id) {
         status = comm->broadcast(message2);
         std::cout << "Status do envio: " << status << std::endl;
 
-        // std::cout << "Broadcasting message3 -----" << std::endl;
-        // status = comm->broadcast(message3);
-        // std::cout << "Status do envio: " << status << std::endl;
+        std::cout << "Broadcasting message3 -----" << std::endl;
+        status = comm->broadcast(message3);
+        std::cout << "Status do envio: " << status << std::endl;
 
     } else {
-        for (int i=0; i<2; i++) {
+        for (int i=0; i<3; i++) {
             // Wait to receive a message
             Message received = comm->deliver();
+            if (received.sender_id==-1) {
+                std::cout << "\n\n Nothing to receive \n";
+                continue;
+            }
             std::cout << "\n\nReceived message from process " << received.sender_id << ": \n";
             for (auto byte : received.content) {
                 std::cout << byte << std::endl;
