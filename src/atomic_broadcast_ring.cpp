@@ -17,13 +17,17 @@ AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<s
 //     return 0;
 // }
 
-int AtomicBroadcastRing::broadcast_start(const std::vector<uint8_t>& message) {
-    broadcast(message);
-    receive();
-    return 0;
+int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message) {
+    int status = broadcast(message);
+    if (status==0) {
+        broadcast_ring(std::vector<uint8_t>{'D','E','L'});
+    } else {
+        broadcast_ring(std::vector<uint8_t>{'N','D','E','L'});
+    }
+    return status;
 }
 
-int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message) {
+int AtomicBroadcastRing::broadcast_ring(const std::vector<uint8_t>& message) {
     int attempt_count = 0;
     const int max_attempts = 3; // Máximo de tentativas
 
@@ -81,6 +85,13 @@ Message AtomicBroadcastRing::deliver() {
         if (msg.sender_id != process_id) {
             send(next_node_id, msg.content);
         }
+
+        Message msg = receive();
+
+        if (msg.sender_id != process_id && (msg.content == std::vector<uint8_t>{'D','E','L'}) || msg.content==std::vector<uint8_t>{'N','D','E','L'}) {
+            send(next_node_id, msg.content);
+        }
+
         return msg;
     }
 }
