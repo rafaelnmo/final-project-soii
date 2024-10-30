@@ -232,7 +232,23 @@ Message ReliableComm::receive() {
     sigaddset(&newmask, SIGALRM);
     pthread_sigmask(SIG_BLOCK, &newmask, &oldmask);
 
-    Message msg = receive_single_msg();
+    Message msg;
+
+    if (setjmp(jumpBuffer) == 0) {
+        std::signal(SIGALRM, signalHandler);
+        pthread_sigmask(SIG_UNBLOCK, &newmask, nullptr);
+        ualarm(std::min(TIMEOUT_TIMER * 1000, 1000000), 0);
+
+        msg = receive_single_msg();
+
+        pthread_sigmask(SIG_UNBLOCK, &oldmask, nullptr);
+        ualarm(0,0);  // Cancel the alarm if function completes in time
+    } else {
+        pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
+        ualarm(0, 0);
+        return Message();   // Message with sender_id = -1, indicating failure
+                            // In this case, no message to receive
+    }
 
     int received_sender_id = msg.sender_id;
     log("received new message");
@@ -244,9 +260,9 @@ Message ReliableComm::receive() {
                 log("it is syn, loop entered, sending ack", "DEBUG");
                 counter++;
 
-                    sigemptyset(&newmask);
-                    sigaddset(&newmask, SIGALRM);
-                    pthread_sigmask(SIG_BLOCK, &newmask, &oldmask);
+                    std::signal(SIGALRM, signalHandler);
+                    pthread_sigmask(SIG_UNBLOCK, &newmask, nullptr);
+                    ualarm(std::min(TIMEOUT_TIMER * 1000, 1000000), 0);
 
                     log("Send ack recv msg");
                     msg = send_ack_recv_contents(received_sender_id);

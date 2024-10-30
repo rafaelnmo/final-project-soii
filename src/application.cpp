@@ -29,7 +29,7 @@ void Application::run(int process_id) {
             // Wait to receive a message
             Message received = comm->deliver();
             if (received.sender_id==-1) {
-                std::cout << "\n\n Nothing to receive \n";
+                std::cout << "\n\n Nothing to receive \n\n";
                 continue;
             }
             std::cout << "\n\nReceived message from process " << received.sender_id << ": \n";
