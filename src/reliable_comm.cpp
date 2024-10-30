@@ -79,18 +79,18 @@ Message ReliableComm::send_contents_and_wait_close(int id, const std::vector<uin
 
 int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
     communication_state = SendSYN;
-    bool loop = true;
+    bool correct = false;
+
     Message received;
     int counter = 0;
 
-    std::cout << loop;
     sigset_t newmask, oldmask;
     sigemptyset(&newmask);
     sigaddset(&newmask, SIGALRM);
     pthread_sigmask(SIG_BLOCK, &newmask, &oldmask);
 
     log("send_message");
-    while (counter < RETRY_COUNTER) {
+    while (counter < RETRY_COUNTER && !correct) {
         if (setjmp(jumpBuffer) == 0) {
             counter++;
 
@@ -104,11 +104,13 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
             ualarm(0,0);  // Cancel the alarm if function completes in time
 
             // send_syn() is complete.
-            log("no timeout on syn", "DEBUG");
             if (received.content != std::vector<uint8_t>{'A', 'C', 'K'}) {
                 log("received message other than ACK", "ERROR");
             } else if (received.sender_id != id) {
                 log("received message not from target", "ERROR");
+            } else {
+                log("correct ACK","INFO");
+                correct = true;
             }
         } else {
             // If longjmp was called, we handle the timeout here
@@ -117,7 +119,7 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
         }
     }
 
-    if (counter == RETRY_COUNTER) {
+    if (counter >= RETRY_COUNTER) {
         log("Retry limit exceeded for SYN, aborting","WARNING");
         communication_state = Waiting;
         return -1;
@@ -125,7 +127,7 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
         log("Send SYN succesfull", "DEBUG");
     }
 
-    loop = true;
+    correct = false;
     counter = 0;
     communication_state = SendMESSAGE;
 
@@ -133,7 +135,7 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
     sigaddset(&newmask, SIGALRM);
     pthread_sigmask(SIG_BLOCK, &newmask, &oldmask);
 
-    while (counter < RETRY_COUNTER) {
+    while (counter < RETRY_COUNTER && !correct) {
         if (setjmp(jumpBuffer) == 0) {
             counter++;
 
@@ -147,11 +149,13 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
             pthread_sigmask(SIG_UNBLOCK, &oldmask, nullptr);
             ualarm(0,0);  // Cancel the alarm if function completes in time
 
-            log("no timeout on contents", "DEBUG");
             if (received.content != std::vector<uint8_t>{'C', 'L','O','S','E'}) {
                 log("received message other than CLOSE","WARNING");
             } else if (received.sender_id != id) {
                 log("received message not from target", "WARNING");
+            } else {
+                log("correct CLOSE","INFO");
+                correct = true;
             }
         } else {
             // If longjmp was called, we handle the timeout here
@@ -218,51 +222,48 @@ Message ReliableComm::send_ack_recv_contents(int received_sender_id) {
 Message ReliableComm::receive() {
     int counter = 0;
     bool loop = true;
-    bool inner_loop = true;
+    bool correct = false;
+    sigset_t newmask, oldmask;
 
     Message msg = receive_single_msg();
+
     int received_sender_id = msg.sender_id;
     log("received new message");
 
     while (loop) {
         log("checking if syn", "DEBUG" );
         if (msg.content == std::vector<uint8_t>{'S', 'Y', 'N'}) {
-            log("it is syn, loop entered, sending ack", "DEBUG");
-            while (inner_loop) {
-                try {
-                    Timeout timeout(TIMEOUT_TIMER);
-                    timeout.start();
-                    msg = send_ack_recv_contents(received_sender_id);
-                } catch (Timeout * t) {
-                    // send_ack() is not complete.
-                    log("timeout on msg", "WARNING");
-                    loop = true;
+            if (setjmp(jumpBuffer) == 0) {
+                log("it is syn, loop entered, sending ack", "DEBUG");
+                while (counter < RETRY_COUNTER && !correct) {
                     counter++;
-                    if (counter >= RETRY_COUNTER) {
-                        log("exceeded retry limit, aborting communication", "ERROR");
-                        inner_loop = false;
-                    }
-                }
-                
-                // send_ack() is complete.
-                log("no timeout on msg", "DEBUG");
-                if (msg.sender_id == received_sender_id) {
-                    log("correct sender id", "DEBUG");
-                    loop = false;
-                    inner_loop = false;
-                }
-            }
 
-            if (!inner_loop && !loop) {
-                log("send CLOSE", "DEBUG");
-                channels->send_message(received_sender_id, process_id, msg_num, 0, true, std::vector<uint8_t>{'C', 'L', 'O', 'S', 'E'});
-                loop = false;
+                    sigemptyset(&newmask);
+                    sigaddset(&newmask, SIGALRM);
+                    pthread_sigmask(SIG_BLOCK, &newmask, &oldmask);
+
+                    msg = send_ack_recv_contents(received_sender_id);
+
+                    pthread_sigmask(SIG_UNBLOCK, &oldmask, nullptr);
+                    ualarm(0,0);  // Cancel the alarm if function completes in time
+
+                    if (!msg.control_message) {
+                        correct = true;
+                        loop = false;
+                    };
+                }
+            } else {
+                // If longjmp was called, we handle the timeout here
+                std::cout << "Attempt " << counter << " timed out.\n";
+                log("Send ACK timed out", "WARNING");
             }
         } else {
-            log("not syn, waiting new message to start handshake", "DEBUG");
-            msg = receive_single_msg();
+                log("not syn, waiting new message to start handshake", "DEBUG");
+                msg = receive_single_msg();
+            }
         }
-    }
+    log("Sending CLOSE","DEBUG");
+    channels->send_message(received_sender_id, process_id, msg_num, 0, true, std::vector<uint8_t>{'C', 'L', 'O', 'S', 'E'});
     log("exiting receive()","DEBUG");
     return msg;
 }

@@ -12,6 +12,7 @@ public:
 
     AtomicBroadcastRing(int id, const std::map<int, std::pair<std::string, int>>& nodes);
     int broadcast(const std::vector<uint8_t>& message) override;
+    int broadcast_start(const std::vector<uint8_t>& message);
 
     Message deliver() override;
 

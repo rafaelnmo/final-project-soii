@@ -17,6 +17,12 @@ AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<s
 //     return 0;
 // }
 
+int AtomicBroadcastRing::broadcast_start(const std::vector<uint8_t>& message) {
+    broadcast(message);
+    receive();
+    return 0;
+}
+
 int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message) {
     int attempt_count = 0;
     const int max_attempts = 3; // Máximo de tentativas
@@ -30,11 +36,28 @@ int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message) {
 
         if (result == 0) {
             log("Mensagem enviada com sucesso para o nó " + std::to_string(next_node_id));
-            return 0; // Sucesso, mensagem enviada
+            break;
         } else {
             log("Falha ao enviar mensagem na tentativa #" + std::to_string(attempt_count + 1), "WARNING");
             attempt_count++;
         }
+    }
+
+    if (attempt_count==max_attempts) {
+        log("Exceeded retry amount", "WARNING");
+        return -1;
+    }
+
+    attempt_count = 0;
+
+    log("waiting for ring to complete", "INFO");
+    while (attempt_count< max_attempts) {
+        Message msg = receive();
+        if (msg.sender_id != -1) {
+            log("Ring completed","INFO");
+            return 0;
+        }
+        attempt_count++;
     }
 
     log("Falha ao entregar a mensagem após " + std::to_string(max_attempts) + " tentativas.", "ERROR");
