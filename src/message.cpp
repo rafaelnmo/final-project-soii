@@ -20,26 +20,58 @@ Message::Message(std::string sender_address, int msg_num, char msg_type[], const
 std::vector<uint8_t> Message::serialize() const {
     std::vector<uint8_t> serialized;
     int content_size = content.size();
-    // Reserve enough space for the serialized data
-    serialized.resize(sizeof(sender_id) + sizeof(content_size) + content_size);
+    int sender_address_size = sender_address.size();
 
-    std::memcpy(serialized.data(), &sender_id, sizeof(sender_id));
-    std::memcpy(serialized.data() + sizeof(sender_id), &content_size, sizeof(content_size));
-    std::memcpy(serialized.data() + sizeof(sender_id) + sizeof(content_size), content.data(), content_size);
+    // Reserve enough space for the serialized data
+    serialized.resize(sizeof(sender_address_size) + sender_address_size + sizeof(msg_num) + sizeof(control_message) + sizeof(content_size) + content_size);
+
+    uint8_t* ptr = serialized.data();
+
+    std::memcpy(ptr, &sender_address_size, sizeof(sender_address_size));
+    ptr += sizeof(sender_address_size);
+
+    std::memcpy(ptr, sender_address.data(), sender_address_size);
+    ptr += sender_address_size;
+
+    std::memcpy(ptr, &msg_num, sizeof(msg_num));
+    ptr += sizeof(msg_num);
+
+    std::memcpy(ptr, &control_message, sizeof(control_message));
+    ptr += sizeof(control_message);
+
+    std::memcpy(ptr, &content_size, sizeof(content_size));
+    ptr += sizeof(content_size);
+
+    std::memcpy(ptr, content.data(), content_size);
 
     return serialized;
 }
 
 Message Message::deserialize(const std::vector<uint8_t>& serialized) {
     Message msg;
+    const uint8_t* ptr = serialized.data();
+
+    int sender_address_size;
+    std::memcpy(&sender_address_size, ptr, sizeof(sender_address_size));
+    ptr += sizeof(sender_address_size);
+
+    msg.sender_address.resize(sender_address_size);
+    std::memcpy(&msg.sender_address[0], ptr, sender_address_size);
+    ptr += sender_address_size;
+
+    std::memcpy(&msg.msg_num, ptr, sizeof(msg.msg_num));
+    ptr += sizeof(msg.msg_num);
+
+    std::memcpy(&msg.control_message, ptr, sizeof(msg.control_message));
+    ptr += sizeof(msg.control_message);
+
     int content_size;
-    
-    std::memcpy(&msg.sender_id, serialized.data(), sizeof(msg.sender_id));    
-    std::memcpy(&content_size, serialized.data() + sizeof(msg.sender_id), sizeof(content_size));
-    
-    msg.content = std::vector<uint8_t>(serialized.begin() + sizeof(msg.sender_id) + sizeof(content_size),
-                                       serialized.begin() + sizeof(msg.sender_id) + sizeof(content_size) + content_size);
-    
+    std::memcpy(&content_size, ptr, sizeof(content_size));
+    ptr += sizeof(content_size);
+
+    msg.content.resize(content_size);
+    std::memcpy(&msg.content[0], ptr, content_size);
+
     return msg;
 }
 
