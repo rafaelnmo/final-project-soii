@@ -2,15 +2,15 @@
 #include <unistd.h>
 #include <cstring>
 #include <iostream>
+#include <vector>
+#include <numeric>
 
 #define MAX_BUFFER_SIZE 1024
 
 namespace {
     int calculate_hash(const std::vector<uint8_t>& content) {
         int hash = 0;
-        for (auto byte : content) {
-            hash = (hash * 31 + byte) % 1000003;
-        }
+        hash = std::accumulate(content.begin(), content.end(), 0);
         return hash;
     }
 }
