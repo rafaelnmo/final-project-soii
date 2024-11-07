@@ -1,11 +1,21 @@
 #include "message.h"
 #include <iostream>
 
-Message::Message(int sender, int msg_num, int sequence_number, uint8_t control_message,const std::vector<uint8_t>& msg)
-    : sender_id(sender), msg_num(msg_num), sequence_number(sequence_number), control_message(control_message), content(msg) {}
-
-Message::Message()
-    : sender_id(-1), msg_num(0), control_message(0), content() {}
+Message::Message(std::string sender_address, int msg_num, char msg_type[], const std::vector<uint8_t>& msg)
+    : sender_address(sender_address), msg_num(msg_num), control_message(control_message), content(msg) {
+        if (std::strcmp(msg_type, "MSG") == 0) {
+            control_message = 0;
+        } else if ( (std::strcmp(msg_type, "SYN") == 0)
+                || (std::strcmp(msg_type, "ACK") == 0)
+                || (std::strcmp(msg_type, "CLS") == 0)
+                || (std::strcmp(msg_type, "TKV") == 0)
+                || (std::strcmp(msg_type, "TKT") == 0)
+                || (std::strcmp(msg_type, "TKN") == 0) ) {
+            control_message = 6;
+        } else {
+            std::cerr << "Invalid message type" << std::endl;
+        }
+    }
 
 std::vector<uint8_t> Message::serialize() const {
     std::vector<uint8_t> serialized;
