@@ -35,7 +35,7 @@ void Channels::bind_socket(int process_id) {
     }
 }
 
-void Channels::send_message(int id, int process_id, int msg_num, int sequence_number, uint8_t control_message, const std::vector<uint8_t>& message) {
+void Channels::send_message(int id, int process_id, Message msg) {
 
     struct sockaddr_in dest_addr;
     memset(&dest_addr, 0, sizeof(dest_addr));
@@ -43,7 +43,8 @@ void Channels::send_message(int id, int process_id, int msg_num, int sequence_nu
     dest_addr.sin_port = htons(nodes.at(id).second);
     inet_pton(AF_INET, nodes.at(id).first.c_str(), &dest_addr.sin_addr);
 
-    Message msg(process_id, msg_num, sequence_number, control_message, message);
+    std::string address = (nodes.at(id).first) + std::to_string(nodes.at(id).second);
+
     std::vector<uint8_t> new_message = msg.serialize();
 
     int msg_hash = calculate_hash(new_message);
@@ -66,8 +67,9 @@ std::pair<Message, int> Channels::receive_message() {
         std::vector<uint8_t> msg(buffer, buffer + bytes_received - 2);
         int msg_hash = buffer[bytes_received - 2] | (buffer[bytes_received - 1] << 8);
         Message new_message = Message::deserialize(msg);
-        return { new_message, msg_hash }; // Adjust sender_id 
+        //std::pair<Message, int> * result = new std::pair<Message, int>(new_message, msg_hash);
+        return std::make_pair(new_message, msg_hash); // Adjust sender_id 
     }
 
-    return { Message(0, -1, 1, 0, {}), 0 }; // Return an empty message in case of failure
+    return std::make_pair(Message(), 0); // Return an empty message in case of failure
 }
