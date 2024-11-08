@@ -1,17 +1,20 @@
 #include "message.h"
 #include <iostream>
 
-Message::Message(std::string sender_address, int msg_num, char msg_type[], const std::vector<uint8_t>& msg)
-    : sender_address(sender_address), msg_num(msg_num), control_message(control_message), content(msg) {
-        if (std::strcmp(msg_type, "MSG") == 0) {
+Message::Message()
+    : sender_address(""), msg_num(-1), control_message(1), msg_type("ERR"), content(std::vector<uint8_t>{}) {}
+
+Message::Message(std::string sender_address, int msg_num, std::string msg_type, const std::vector<uint8_t>& msg)
+    : sender_address(sender_address), msg_num(msg_num), msg_type(msg_type), content(msg) {
+        if (msg_type=="MSG") {
             control_message = 0;
-        } else if ( (std::strcmp(msg_type, "SYN") == 0)
-                || (std::strcmp(msg_type, "ACK") == 0)
-                || (std::strcmp(msg_type, "CLS") == 0)
-                || (std::strcmp(msg_type, "TKV") == 0)
-                || (std::strcmp(msg_type, "TKT") == 0)
-                || (std::strcmp(msg_type, "TKN") == 0) ) {
-            control_message = 6;
+        } else if ((msg_type=="SYN")
+                || (msg_type=="ACK")
+                || (msg_type=="CLS")
+                || (msg_type=="TKV")
+                || (msg_type=="TKT")
+                || (msg_type=="TKN") ) {
+            control_message = 1;
         } else {
             std::cerr << "Invalid message type" << std::endl;
         }
@@ -19,11 +22,12 @@ Message::Message(std::string sender_address, int msg_num, char msg_type[], const
 
 std::vector<uint8_t> Message::serialize() const {
     std::vector<uint8_t> serialized;
-    int content_size = content.size();
     int sender_address_size = sender_address.size();
+    int msg_type_size = msg_type.size();
+    int content_size = content.size();
 
     // Reserve enough space for the serialized data
-    serialized.resize(sizeof(sender_address_size) + sender_address_size + sizeof(msg_num) + sizeof(control_message) + sizeof(content_size) + content_size);
+    serialized.resize(sizeof(sender_address_size) + sender_address_size + sizeof(msg_num) + sizeof(msg_type_size) + msg_type_size + sizeof(control_message) + sizeof(content_size) + content_size);
 
     uint8_t* ptr = serialized.data();
 
@@ -35,6 +39,12 @@ std::vector<uint8_t> Message::serialize() const {
 
     std::memcpy(ptr, &msg_num, sizeof(msg_num));
     ptr += sizeof(msg_num);
+
+    std::memcpy(ptr, &msg_type_size, sizeof(msg_type_size));
+    ptr += sizeof(msg_type_size);
+
+    std::memcpy(ptr, msg_type.data(), msg_type_size);
+    ptr += msg_type_size;
 
     std::memcpy(ptr, &control_message, sizeof(control_message));
     ptr += sizeof(control_message);
@@ -62,6 +72,14 @@ Message Message::deserialize(const std::vector<uint8_t>& serialized) {
     std::memcpy(&msg.msg_num, ptr, sizeof(msg.msg_num));
     ptr += sizeof(msg.msg_num);
 
+    int msg_type_size;
+    std::memcpy(&msg_type_size, ptr, sizeof(msg_type_size));
+    ptr += sizeof(msg_type_size);
+
+    msg.msg_type.resize(msg_type_size);
+    std::memcpy(&msg.msg_type[0], ptr, msg_type_size);
+    ptr += msg_type_size;
+
     std::memcpy(&msg.control_message, ptr, sizeof(msg.control_message));
     ptr += sizeof(msg.control_message);
 
@@ -74,4 +92,3 @@ Message Message::deserialize(const std::vector<uint8_t>& serialized) {
 
     return msg;
 }
-
