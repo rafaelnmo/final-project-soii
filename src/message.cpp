@@ -2,7 +2,7 @@
 #include <iostream>
 
 Message::Message()
-    : sender_address(""), msg_num(-1), control_message(1), msg_type("ERR"), content(std::vector<uint8_t>{}) {}
+    : sender_address("ERROR"), msg_num(-1), msg_type("ERR"), control_message(1), content(std::vector<uint8_t>{}) {}
 
 Message::Message(std::string sender_address, int msg_num, std::string msg_type, const std::vector<uint8_t>& msg)
     : sender_address(sender_address), msg_num(msg_num), msg_type(msg_type), content(msg) {
