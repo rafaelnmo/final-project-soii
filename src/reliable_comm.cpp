@@ -36,7 +36,11 @@ int ReliableComm::get_process_id() {
 }
 
 int ReliableComm::send(int id, const std::vector<uint8_t>& message) {
-    return send_message(id, message);
+    return send_message(id,"MSG", message);
+}
+
+int ReliableComm::send_ctrl(int id, std::string msg_type) {
+    return send_message(id, msg_type, std::vector<uint8_t>{' '});
 }
 
 int ReliableComm::broadcast(const std::vector<uint8_t>& message) {
@@ -49,7 +53,7 @@ int ReliableComm::broadcast(const std::vector<uint8_t>& message) {
     }
 
     if (broadcast_type == "BE") {
-        beb_broadcast(id_list,message);
+        beb_broadcast(id_list, "MSG", message);
     } else if (broadcast_type == "UR") {
         urb_broadcast(id_list,message);
     }
@@ -64,7 +68,7 @@ void ReliableComm::signalHandler(int signum) {
 // start handshake
 Message ReliableComm::send_syn_and_wait_ack(int id) {
 
-    Message msg = Message(process_address, msg_num, "SYN", std::vector<uint8_t>{'S', 'Y', 'N'});
+    Message msg = Message(process_address, msg_num, "SYN", std::vector<uint8_t>{' '});
 
     channels->send_message(id, process_id, msg);    // envia SYN
 
@@ -73,9 +77,9 @@ Message ReliableComm::send_syn_and_wait_ack(int id) {
     return received;
 }
 
-Message ReliableComm::send_contents_and_wait_close(int id, const std::vector<uint8_t>& message) {
+Message ReliableComm::send_contents_and_wait_close(int id, std::string msg_type, const std::vector<uint8_t>& message) {
 
-    Message msg = Message(process_address, msg_num, "MSG", message);
+    Message msg = Message(process_address, msg_num, msg_type, message);
 
     channels->send_message(id, process_id, msg);    // envia MESSAGE
 
@@ -84,7 +88,7 @@ Message ReliableComm::send_contents_and_wait_close(int id, const std::vector<uin
     return received;
 }
 
-int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
+int ReliableComm::send_message(int id, std::string msg_type, const std::vector<uint8_t>& message) {
     communication_state = SendSYN;
     bool correct = false;
 
@@ -111,7 +115,7 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
             ualarm(0,0);  // Cancel the alarm if function completes in time
 
             // send_syn() is complete.
-            if (received.content != std::vector<uint8_t>{'A', 'C', 'K'}) {
+            if (received.msg_type != "ACK") {
                 log("received message other than ACK", "ERROR");
             // } else if (received.sender_address != process_address) {
             //     log("received message not from target", "ERROR");
@@ -152,13 +156,13 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
             pthread_sigmask(SIG_UNBLOCK, &newmask, nullptr);
             ualarm(std::min(TIMEOUT_TIMER * 1000, 1000000), 0);
 
-            received = send_contents_and_wait_close(id, message);
+            received = send_contents_and_wait_close(id, msg_type, message);
             //log("timeout on send contents and wait close", "WARNING");
 
             pthread_sigmask(SIG_UNBLOCK, &oldmask, nullptr);
             ualarm(0,0);  // Cancel the alarm if function completes in time
 
-            if (received.content != std::vector<uint8_t>{'C', 'L','O','S','E'}) {
+            if (received.msg_type != "CLS") {
                 log("received message other than CLOSE","WARNING");
             // } else if (received.sender_address != process_address) {
             //     log("received message not from target", "WARNING");
@@ -202,12 +206,7 @@ void ReliableComm::listen() {
         auto [msg, msg_hash] = channels->receive_message();
         
         std::unique_lock<std::mutex> lock(mtx);
-        if (!is_delivered(msg_hash)
-        || (msg.content == std::vector<uint8_t>{'S', 'Y', 'N'}
-        || msg.content == std::vector<uint8_t>{'A', 'C', 'K'}
-        || msg.content == std::vector<uint8_t>{'C', 'L','O','S','E'}
-        || msg.content == std::vector<uint8_t>{'D','E','L'}
-        || msg.content == std::vector<uint8_t>{'N','D','E','L'})) {
+        if (!is_delivered(msg_hash) || msg.control_message == 1) {
             mark_delivered(msg_hash);
             message_queue.push(msg);
             cv.notify_all();
@@ -226,7 +225,7 @@ Message ReliableComm::receive_single_msg() {
 
 
 Message ReliableComm::send_ack_recv_contents(int received_sender_id) {
-    Message msg = Message(process_address, msg_num, "ACK", std::vector<uint8_t>{'A', 'C', 'K'});
+    Message msg = Message(process_address, msg_num, "ACK", std::vector<uint8_t>{' '});
 
     channels->send_message(received_sender_id, process_id, msg);
 
@@ -259,7 +258,7 @@ Message ReliableComm::receive() {
 
     while (counter < RETRY_COUNTER) {
         log("checking if syn", "DEBUG" );
-        if (msg.content == std::vector<uint8_t>{'S', 'Y', 'N'}) {
+        if (msg.msg_type == "SYN") {
             if (setjmp(jumpBuffer) == 0) {
                 log("it is syn, loop entered, sending ack", "DEBUG");
                 counter++;
@@ -274,9 +273,7 @@ Message ReliableComm::receive() {
                     pthread_sigmask(SIG_UNBLOCK, &oldmask, nullptr);
                     ualarm(0,0);  // Cancel the alarm if function completes in time
 
-                    if (!((msg.content == std::vector<uint8_t>{'S', 'Y', 'N'}
-        || msg.content == std::vector<uint8_t>{'A', 'C', 'K'}
-        || msg.content == std::vector<uint8_t>{'C', 'L','O','S','E'}))) {
+                    if (msg.msg_type == "MSG") {
                         log("Contents received");
                         break;
                     }
@@ -293,17 +290,21 @@ Message ReliableComm::receive() {
             }
         }
     log("Sending CLOSE","DEBUG");
-    Message msg_close = Message(process_address, msg_num, "CLS", std::vector<uint8_t>{'C', 'L', 'O', 'S', 'E'});
+    Message msg_close = Message(process_address, msg_num, "CLS", std::vector<uint8_t>{' '});
     channels->send_message(received_sender_id, process_id, msg_close);
     log("exiting receive()","DEBUG");
     return msg;
 }
 
-int ReliableComm::beb_broadcast(const std::vector<int> id_list, const std::vector<uint8_t> message) {
+int ReliableComm::beb_broadcast(const std::vector<int> id_list, std::string msg_type, const std::vector<uint8_t> message) {
     log("***** Start BE *****");
     int success = 0;
     for (const int& id : id_list) {
-        std::min(success, send(id, message));
+        if (msg_type == "MSG") {
+            std::min(success, send(id, message));
+        } else {
+            std::min(success, send_ctrl(id, msg_type));
+        }
     }
     log("***** End BE *****" );
     return success;
@@ -311,18 +312,18 @@ int ReliableComm::beb_broadcast(const std::vector<int> id_list, const std::vecto
 
 int ReliableComm::urb_broadcast(const std::vector<int> id_list, const std::vector<uint8_t> message) {
     log("***** Start URB *****");
-    int status = beb_broadcast(id_list, message);
+    int status = beb_broadcast(id_list, "MSG", message);
 
     log("Status: "+ std::to_string(status), "DEBUG");
     log("Send URB signal", "DEBUG");
     if (!status) {
         // Send ACK deliver
         log("DEL", "DEBUG");
-        beb_broadcast(id_list, std::vector<uint8_t>{'D', 'E', 'L'});
+        beb_broadcast(id_list, "DEL", std::vector<uint8_t>{' '});
     } else {
         // Send NACK deliver
         log("NDEL","DEBUG");
-        beb_broadcast(id_list, std::vector<uint8_t>{'N','D', 'E', 'L'});
+        beb_broadcast(id_list, "NEL", std::vector<uint8_t>{' '});
     }
 
     log("***** End URB *****");
@@ -342,11 +343,11 @@ Message ReliableComm::deliver() {
 
         Message urb_sign = receive();
         
-        if (urb_sign.content == std::vector<uint8_t>{'D', 'E', 'L'}) {
+        if (urb_sign.msg_type=="DEL") {
             log("DEL", "DEBUG");
             return msg;
-        } else if (urb_sign.content == std::vector<uint8_t>{'N', 'D', 'E', 'L'}) {
-            log("NDEL", "DEBUG");
+        } else if (urb_sign.msg_type=="NEL") {
+            log("NEL", "DEBUG");
             continue;
         }
     }

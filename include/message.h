@@ -21,7 +21,6 @@ Possible message types:
     TKV - Token vote to define who has token
     TKT - Token transfer between peers
     TKN - Token notify, notify all peers that token is being transferred
-
 */
 
 struct Message {

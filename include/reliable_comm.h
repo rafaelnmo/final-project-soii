@@ -24,7 +24,7 @@ class Channels;
 class ReliableComm {
 public:
     ReliableComm(int id, const std::map<int, std::pair<std::string, int>>& nodes, const std::string broadcast_type);
-    int send(int id, const std::vector<uint8_t>& message);
+    int send(int id, const std::vector<uint8_t>& message);    
     virtual int broadcast(const std::vector<uint8_t>& message);
     Message receive();
     virtual Message deliver();
@@ -50,16 +50,17 @@ private:
     std::queue<Message> message_queue;
 
     void listen();
-    int send_message(int id, const std::vector<uint8_t>& message);
+    int send_message(int id, std::string msg_type, const std::vector<uint8_t>& message);
+    int send_ctrl(int id, std::string msg_type);
     bool is_delivered(int msg_hash);
     void mark_delivered(int msg_hash);
 
     Message receive_single_msg();
     Message send_syn_and_wait_ack(int id);
-    Message send_contents_and_wait_close(int id, const std::vector<uint8_t>& message);
+    Message send_contents_and_wait_close(int id, std::string msg_type, const std::vector<uint8_t>& message);
     Message send_ack_recv_contents(int received_sender_id);
 
-    int beb_broadcast(const std::vector<int> id_list, const std::vector<uint8_t> message);
+    int beb_broadcast(const std::vector<int> id_list, std::string msg_type, const std::vector<uint8_t> message);
     int urb_broadcast(const std::vector<int> id_list, const std::vector<uint8_t> message);
     static void signalHandler(int signum);
 };
