@@ -17,7 +17,8 @@ public:
     Message deliver() override;
 
 private:
-    int next_node_id; 
+    int next_node_id;
+    bool token = false;
 };
 
 #endif 

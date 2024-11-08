@@ -7,6 +7,8 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <optional>
+
 
 enum State {
     Waiting,
@@ -28,9 +30,11 @@ public:
     virtual Message deliver();
     int get_process_id();
     void log(const std::string& message, const std::string& level = "INFO");
+    std::optional<int> findKeyByValue(std::string address);
 
 protected:
     int process_id;
+    std::string process_address;
     
 private:
     enum State communication_state;

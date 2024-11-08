@@ -13,26 +13,26 @@ void Application::run(int process_id) {
     if (process_id==0) {
 
         std::cout << "Broadcasting message1 -----" << std::endl;
-        int status = comm->broadcast(message1);
+        int status = comm->send(1, message1);
         std::cout << "Status do envio: " << status << std::endl;
 
-        std::cout << "Broadcasting message2 -----" << std::endl;
-        status = comm->broadcast(message2);
-        std::cout << "Status do envio: " << status << std::endl;
+        // std::cout << "Broadcasting message2 -----" << std::endl;
+        // status = comm->broadcast(message2);
+        // std::cout << "Status do envio: " << status << std::endl;
 
-        std::cout << "Broadcasting message3 -----" << std::endl;
-        status = comm->broadcast(message3);
-        std::cout << "Status do envio: " << status << std::endl;
+        // std::cout << "Broadcasting message3 -----" << std::endl;
+        // status = comm->broadcast(message3);
+        // std::cout << "Status do envio: " << status << std::endl;
 
     } else {
         for (int i=0; i<3; i++) {
             // Wait to receive a message
-            Message received = comm->deliver();
-            if (received.sender_id==-1) {
+            Message received = comm->receive();
+            if (received.msg_num==-1) {
                 std::cout << "\n\n Nothing to receive \n";
                 continue;
             }
-            std::cout << "\n\nReceived message from process " << received.sender_id << ": \n";
+            std::cout << "\n\nReceived message from process " << received.sender_address << ": \n";
             for (auto byte : received.content) {
                 std::cout << byte << std::endl;
             }

@@ -8,6 +8,8 @@
 #include <iostream>
 #include <csignal>
 #include <csetjmp>
+#include <optional>
+#include <string>
 
 #define MAX_BUFFER_SIZE 1024
 #define RETRY_COUNTER 3
@@ -17,6 +19,7 @@ jmp_buf jumpBuffer;
 
 ReliableComm::ReliableComm(int id, const std::map<int, std::pair<std::string, int>>& nodes, const std::string broadcast_type)
     : process_id(id), nodes(nodes), broadcast_type(broadcast_type) {
+    process_address = nodes.at(id).first + std::to_string(nodes.at(id).second);
     msg_num = 0;
     communication_state = Waiting;
     // Initialize Channels
@@ -61,7 +64,9 @@ void ReliableComm::signalHandler(int signum) {
 // start handshake
 Message ReliableComm::send_syn_and_wait_ack(int id) {
 
-    channels->send_message(id, process_id, msg_num, 0, 1, std::vector<uint8_t>{'S', 'Y', 'N'});    // envia SYN
+    Message msg = Message(process_address, msg_num, "SYN", std::vector<uint8_t>{'S', 'Y', 'N'});
+
+    channels->send_message(id, process_id, msg);    // envia SYN
 
     Message received = receive_single_msg();    // recebe ACK
 
@@ -69,7 +74,10 @@ Message ReliableComm::send_syn_and_wait_ack(int id) {
 }
 
 Message ReliableComm::send_contents_and_wait_close(int id, const std::vector<uint8_t>& message) {
-    channels->send_message(id, process_id, msg_num, 0, 0, message);    // envia MESSAGE
+
+    Message msg = Message(process_address, msg_num, "MSG", message);
+
+    channels->send_message(id, process_id, msg);    // envia MESSAGE
 
     Message received = receive_single_msg();     // recebe CLOSE
 
@@ -105,8 +113,8 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
             // send_syn() is complete.
             if (received.content != std::vector<uint8_t>{'A', 'C', 'K'}) {
                 log("received message other than ACK", "ERROR");
-            } else if (received.sender_id != id) {
-                log("received message not from target", "ERROR");
+            // } else if (received.sender_address != process_address) {
+            //     log("received message not from target", "ERROR");
             } else {
                 log("correct ACK","INFO");
                 correct = true;
@@ -152,8 +160,8 @@ int ReliableComm::send_message(int id, const std::vector<uint8_t>& message) {
 
             if (received.content != std::vector<uint8_t>{'C', 'L','O','S','E'}) {
                 log("received message other than CLOSE","WARNING");
-            } else if (received.sender_id != id) {
-                log("received message not from target", "WARNING");
+            // } else if (received.sender_address != process_address) {
+            //     log("received message not from target", "WARNING");
             } else {
                 log("correct CLOSE","INFO");
                 correct = true;
@@ -218,10 +226,22 @@ Message ReliableComm::receive_single_msg() {
 
 
 Message ReliableComm::send_ack_recv_contents(int received_sender_id) {
-    channels->send_message(received_sender_id, process_id, msg_num,0, 1, std::vector<uint8_t>{'A', 'C', 'K'});
+    Message msg = Message(process_address, msg_num, "ACK", std::vector<uint8_t>{'A', 'C', 'K'});
 
-    Message msg = receive_single_msg(); // recebe MESSAGE
-    return msg;
+    channels->send_message(received_sender_id, process_id, msg);
+
+    Message received = receive_single_msg(); // recebe MESSAGE
+
+    return received;
+}
+
+std::optional<int> ReliableComm::findKeyByValue(std::string address) {
+    for (const auto& [key, val] : this->nodes) {
+        if ((val.first + std::to_string(val.second)) == address) {
+            return key;  // Return the key if the value is found
+        }
+    }
+    return std::nullopt;  // Return empty if the value is not found
 }
 
 Message ReliableComm::receive() {
@@ -234,7 +254,7 @@ Message ReliableComm::receive() {
 
     Message msg = receive_single_msg();
 
-    int received_sender_id = msg.sender_id;
+    int received_sender_id = findKeyByValue(msg.sender_address).value();
     log("received new message");
 
     while (counter < RETRY_COUNTER) {
@@ -273,7 +293,8 @@ Message ReliableComm::receive() {
             }
         }
     log("Sending CLOSE","DEBUG");
-    channels->send_message(received_sender_id, process_id, msg_num, 0, true, std::vector<uint8_t>{'C', 'L', 'O', 'S', 'E'});
+    Message msg_close = Message(process_address, msg_num, "CLS", std::vector<uint8_t>{'C', 'L', 'O', 'S', 'E'});
+    channels->send_message(received_sender_id, process_id, msg_close);
     log("exiting receive()","DEBUG");
     return msg;
 }

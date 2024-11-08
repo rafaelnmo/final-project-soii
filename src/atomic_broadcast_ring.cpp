@@ -53,7 +53,7 @@ int AtomicBroadcastRing::broadcast_ring(const std::vector<uint8_t>& message) {
     log("waiting for ring to complete", "INFO");
     while (attempt_count < max_attempts) {
         Message msg = receive();
-        if (msg.sender_id != -1 && (msg.content==message)) {
+        if (msg.msg_num != -1 && (msg.content==message)) {
             log("Ring completed","INFO");
             break;
         }
@@ -72,10 +72,10 @@ Message AtomicBroadcastRing::deliver() {
     Message msg = receive();
 
     // Deliver message to application
-    log("AB: Delivering message from node "  + std::to_string(msg.sender_id ));
+    log("AB: Delivering message from node "  + msg.sender_address);
 
     // Forward the message to the next node in the ring unless it's the sender
-    if (msg.sender_id != process_id) {
+    if (msg.msg_num != process_id) {
         send(next_node_id, msg.content);
     }
 
@@ -90,7 +90,7 @@ Message AtomicBroadcastRing::deliver() {
                 std::cout << byte << std::endl;
             }
 
-        if (msg.sender_id != process_id && (signal.content == std::vector<uint8_t>{'D','E','L'} || signal.content==std::vector<uint8_t>{'N','D','E','L'})) {
+        if ((msg.sender_address) != process_address && (signal.content == std::vector<uint8_t>{'D','E','L'} || signal.content==std::vector<uint8_t>{'N','D','E','L'})) {
             log("RESEND Signal");
             send(next_node_id, signal.content);
             break;
