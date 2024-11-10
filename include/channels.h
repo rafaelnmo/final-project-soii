@@ -6,9 +6,17 @@
 #include <string>
 #include <arpa/inet.h>
 
+/*
+Types of conf:
+"REGULAR" : Regular Operation, no failure injection, chance and maxdelay is ignored
+"LOSS"    : Random failure on send, use chance to determine what % of messages are dropped
+"DELAY"   : Random delay up to maxdelay*100 miliseconds
+"FULL"    : uses both LOSS and DELAY settings at the same time
+ */
+
 class Channels {
 public:
-    Channels(const std::map<int, std::pair<std::string, int>>& nodes, const std::string conf);
+    Channels(const std::map<int, std::pair<std::string, int>>& nodes, const std::string conf, const int chance, const int delay);
     void bind_socket(int process_id);
     void send_message(int id, int process_id, Message msg);
     std::pair<Message, int> receive_message();
@@ -18,6 +26,8 @@ private:
     int sock;
     struct sockaddr_in my_addr;
     std::string conf;
+    int chance;
+    int delay;
 };
 
 #endif
