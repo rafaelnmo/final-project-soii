@@ -15,8 +15,8 @@ namespace {
     }
 }
 
-Channels::Channels(const std::map<int, std::pair<std::string, int>>& nodes)
-    : nodes(nodes) {}
+Channels::Channels(const std::map<int, std::pair<std::string, int>>& nodes, std::string conf)
+    : nodes(nodes), conf(conf) {}
 
 void Channels::bind_socket(int process_id) {
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
