@@ -8,10 +8,11 @@
 
 /*
 Types of conf:
-"REGULAR" : Regular Operation, no failure injection, chance and maxdelay is ignored
-"LOSS"    : Random failure on send, use chance to determine what % of messages are dropped
-"DELAY"   : Random delay up to maxdelay*100 miliseconds
-"FULL"    : uses both LOSS and DELAY settings at the same time
+"REGULAR"   : Regular Operation, no failure injection, chance and maxdelay is ignored
+"LOSS"      : Random failure on send, use chance to determine what % of messages are dropped
+"DELAY"     : Random delay up to maxdelay*100 miliseconds
+"FAILCHECK" : Sends an incorrect checksum with the message
+"FULL"      : uses all failure injection settings at the same time
  */
 
 class Channels {
