@@ -1,7 +1,15 @@
 #include "atomic_broadcast_ring.h"
 #include <iostream>
+#include <thread>
+#include <iostream>
+#include <csignal>
+#include <csetjmp>
+#include <optional>
+#include <string>
 
-#define ATMOCI_TIMEOUT 15
+#define ATOMIC_TIMEOUT 10
+
+jmp_buf jumpBuffer_atomic;
 
 AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<std::string, int>>& nodes)
     : ReliableComm(id, nodes, "AB") {
@@ -19,78 +27,64 @@ AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<s
     }
 }
 
-// int AtomicBroadcastRing::find_next_node(int id) {
-//     auto it = nodes.find(id);
-//     if (++it == nodes.end()) {
-//         it = nodes.begin();
-//     }
-//     return it->first;
-// }
+void AtomicBroadcastRing::signalHandler(int signum) {
+    std::cout << "Timeout reached! Returning from blocking function.\n";
+    longjmp(jumpBuffer_atomic, 1);  // Jump back to the saved state
+}
 
 int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message) {
     std::unique_lock<std::mutex> lock(mtx_token);
     cv_token.wait(lock, [this] { return token; });
 
-    int status = broadcast_ring(message);
+    int status = broadcast_ring(message, 3);
     if (status==0) {
-        broadcast_ring(std::vector<uint8_t>{'D','E','L'});
+        broadcast_ring(std::vector<uint8_t>{'D','E','L'}, 1);
     } else {
-        broadcast_ring(std::vector<uint8_t>{'N','D','E','L'});
+        broadcast_ring(std::vector<uint8_t>{'N','D','E','L'}, 1);
     }
 
-    std::vector<uint8_t> token_msg = {(unsigned char)next_node_id};
-
-    channels->send_message(next_node_id, process_id,
-                    Message(process_address, msg_num, "TKT", token_msg));
-    log("Token sent", "INFO");
-
-    Message tkn = receive_single_msg();
-    if (tkn.content.front() == token_msg.front()) {
-        log("Token passed seuccesfully", "INFO");
-        token = false;
-    }
+    send_token();
 
     return status;
 }
 
-int AtomicBroadcastRing::broadcast_ring(const std::vector<uint8_t>& message) {
+int AtomicBroadcastRing::broadcast_ring(const std::vector<uint8_t>& message, int max_attempts) {
     int attempt_count = 0;
-    const int max_attempts = 3; // Máximo de tentativas
     int status = 0;
 
+    Message msg;
+
+    sigset_t newmask, oldmask;
+    sigemptyset(&newmask);
+    sigaddset(&newmask, SIGALRM);
+    pthread_sigmask(SIG_BLOCK, &newmask, &oldmask);
+
     while (attempt_count < max_attempts) {
-        log("Tentativa de broadcast #" + std::to_string(attempt_count + 1) + " para o nó " + std::to_string(next_node_id));
-        
-        log("next_node: " + std::to_string(next_node_id));
-        // Tenta enviar a mensagem para o próximo nó
-        int result = channels->send_message(next_node_id, process_id, Message(process_address, msg_num, "MSG", message));
+        if (setjmp(jumpBuffer_atomic) == 0) {
+            std::signal(SIGALRM, signalHandler);
+            pthread_sigmask(SIG_UNBLOCK, &newmask, nullptr);
+            alarm(ATOMIC_TIMEOUT);
 
-        if (result != -1) {
-            log("Mensagem enviada com sucesso para o nó " + std::to_string(next_node_id));
+            log("Tentativa de broadcast #" + std::to_string(attempt_count + 1) + " para o nó " + std::to_string(next_node_id));
+            
+            log("next_node: " + std::to_string(next_node_id));
+            // Tenta enviar a mensagem para o próximo nó
+            channels->send_message(next_node_id, process_id, Message(process_address, msg_num, "MSG", message));
+
+            log("waiting for ring to complete", "INFO");
+
+            msg = receive_single_msg();
+
+            if (msg.msg_num != -1 && (msg.content==message)) {
+                log("Ring completed","INFO");
+                break;
+            }
         } else {
-            log("Falha ao enviar mensagem para " + std::to_string(next_node_id) + ",pulando para o próximo nó" , "WARNING");
-            attempt_count++;
+            pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
+            alarm(0);
+            log("Attempt " + std::to_string(attempt_count) + " timed out.", "WARNING");
         }
-    
 
-    // if (attempt_count==max_attempts) {
-    //     log("Exceeded retry amount", "WARNING");
-    //     return -1;
-    // }
-
-    // attempt_count = 0;
-
-    // int status = 0;
-
-        log("waiting for ring to complete", "INFO");
-
-        Message msg = receive_single_msg();
-
-
-        if (msg.msg_num != -1 && (msg.content==message)) {
-            log("Ring completed","INFO");
-            break;
-        }
         attempt_count++;
     
 
@@ -100,6 +94,45 @@ int AtomicBroadcastRing::broadcast_ring(const std::vector<uint8_t>& message) {
             break;
         }
     }
+
+    return status;
+}
+
+int AtomicBroadcastRing::send_token() {
+    std::vector<uint8_t> token_msg = {(unsigned char)next_node_id};
+
+    int status;
+
+    sigset_t newmask, oldmask;
+    sigemptyset(&newmask);
+    sigaddset(&newmask, SIGALRM);
+    pthread_sigmask(SIG_BLOCK, &newmask, &oldmask);
+
+    if (setjmp(jumpBuffer_atomic) == 0) {
+        channels->send_message(next_node_id, process_id,
+                        Message(process_address, msg_num, "TKT", token_msg));
+        log("Token sent", "INFO");
+
+        std::signal(SIGALRM, signalHandler);
+        pthread_sigmask(SIG_UNBLOCK, &newmask, nullptr);
+        alarm(1);
+
+        Message tkn = receive_single_msg();
+        if (tkn.content.front() == token_msg.front()) {
+            pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
+            alarm(0);
+
+            log("Token passed succesfully", "INFO");
+            status = 0;
+        }
+    } else {
+        pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
+        alarm(0);
+        log("Timeout on token passing, token not passed", "WARNING");
+        status = -1;
+    }
+
+    token = false;
 
     return status;
 }
@@ -142,7 +175,6 @@ Message AtomicBroadcastRing::deliver() {
     Message tkn = receive_single_msg();
 
     if (tkn.msg_type=="TKT") {
-
         log("Token being passed", "INFO");
         if (tkn.content.front() == process_id) {
             log("Token Acquired", "INFO");
