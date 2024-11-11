@@ -4,6 +4,8 @@
 #include <iostream>
 #include <vector>
 #include <numeric>
+#include <cstdlib>
+#include <ctime>
 
 #define MAX_BUFFER_SIZE 1024
 
@@ -15,8 +17,10 @@ namespace {
     }
 }
 
-Channels::Channels(const std::map<int, std::pair<std::string, int>>& nodes, std::string conf, const int chance, const int delay)
-    : nodes(nodes), conf(conf), chance(chance), delay(delay) {}
+Channels::Channels(const std::map<int, std::pair<std::string, int>>& nodes, const std::string conf, const int chance, const int delay)
+    : nodes(nodes), conf(conf), chance(chance), delay(delay) {
+        srand(time(0));
+    }
 
 void Channels::bind_socket(int process_id) {
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -52,8 +56,14 @@ void Channels::send_message(int id, int process_id, Message msg) {
     msg_with_hash.push_back(msg_hash & 0xFF);
     msg_with_hash.push_back((msg_hash >> 8) & 0xFF);
 
-    sendto(sock, msg_with_hash.data(), msg_with_hash.size(), 0,
-           (const struct sockaddr *)&dest_addr, sizeof(dest_addr));
+    if (this->conf == "LOSS" || this->conf == "FULL"){
+        int roll = rand()%101;
+        if (roll < this->chance) {
+            sendto(sock, msg_with_hash.data(), msg_with_hash.size(), 0, (const struct sockaddr *)&dest_addr, sizeof(dest_addr));
+        }
+    } else if (this->conf == "REGULAR") {
+        sendto(sock, msg_with_hash.data(), msg_with_hash.size(), 0, (const struct sockaddr *)&dest_addr, sizeof(dest_addr));
+    }
 }
 
 std::pair<Message, int> Channels::receive_message() {
