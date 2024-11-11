@@ -10,7 +10,7 @@ class Channels {
 public:
     Channels(const std::map<int, std::pair<std::string, int>>& nodes);
     void bind_socket(int process_id);
-    void send_message(int id, int process_id, Message msg);
+    int send_message(int id, int process_id, Message msg);
     std::pair<Message, int> receive_message();
 
 private:

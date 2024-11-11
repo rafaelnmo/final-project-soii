@@ -19,7 +19,7 @@ jmp_buf jumpBuffer;
 
 ReliableComm::ReliableComm(int id, const std::map<int, std::pair<std::string, int>>& nodes, const std::string broadcast_type)
     : process_id(id), nodes(nodes), broadcast_type(broadcast_type) {
-    process_address = nodes.at(id).first + std::to_string(nodes.at(id).second);
+    process_address = nodes.at(id).first + ":" + std::to_string(nodes.at(id).second);
     msg_num = 0;
     communication_state = Waiting;
     // Initialize Channels
@@ -206,7 +206,8 @@ void ReliableComm::listen() {
         auto [msg, msg_hash] = channels->receive_message();
         
         std::unique_lock<std::mutex> lock(mtx);
-        if (!is_delivered(msg_hash) || msg.control_message == 1) {
+        if (!is_delivered(msg_hash)
+        || (msg.control_message)) {
             mark_delivered(msg_hash);
             message_queue.push(msg);
             cv.notify_all();
@@ -236,7 +237,7 @@ Message ReliableComm::send_ack_recv_contents(int received_sender_id) {
 
 std::optional<int> ReliableComm::findKeyByValue(std::string address) {
     for (const auto& [key, val] : this->nodes) {
-        if ((val.first + std::to_string(val.second)) == address) {
+        if ((val.first + ":" + std::to_string(val.second)) == address) {
             return key;  // Return the key if the value is found
         }
     }
@@ -290,8 +291,26 @@ Message ReliableComm::receive() {
             }
         }
     log("Sending CLOSE","DEBUG");
-    Message msg_close = Message(process_address, msg_num, "CLS", std::vector<uint8_t>{' '});
-    channels->send_message(received_sender_id, process_id, msg_close);
+
+    if (setjmp(jumpBuffer)==0) {
+        for (int i; i<RETRY_COUNTER; i++) {
+            std::signal(SIGALRM, signalHandler);
+            pthread_sigmask(SIG_UNBLOCK, &newmask, nullptr);
+            ualarm(std::min(TIMEOUT_TIMER * 1000, 1000000), 0);
+
+            Message msg_close = Message(process_address, msg_num, "CLS", std::vector<uint8_t>{'C', 'L', 'O', 'S', 'E'});
+            channels->send_message(received_sender_id, process_id, msg_close);
+
+            pthread_sigmask(SIG_UNBLOCK, &oldmask, nullptr);
+            ualarm(0,0);  // Cancel the alarm if function completes in time  
+        }
+    } else {
+        pthread_sigmask(SIG_UNBLOCK, &oldmask, nullptr);
+        ualarm(0,0);  // Cancel the alarm if function completes in time  
+        log("CLOSE sent succesgfully", "DEBUG");
+    }
+
+
     log("exiting receive()","DEBUG");
     return msg;
 }

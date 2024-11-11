@@ -36,7 +36,6 @@ protected:
     int process_id;
     std::string process_address;
     
-private:
     enum State communication_state;
     std::map<int, std::pair<std::string, int>> nodes;
     std::string broadcast_type;

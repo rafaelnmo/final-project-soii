@@ -3,6 +3,7 @@
 
 #include "reliable_comm.h"
 #include "message.h"
+#include "channels.h"
 #include <vector>
 #include <map>
 #include <cstdint>
@@ -15,6 +16,8 @@ public:
     int broadcast_ring(const std::vector<uint8_t>& message);
 
     Message deliver() override;
+    void listen();
+    int find_next_node(int id);
 
 private:
     int next_node_id;

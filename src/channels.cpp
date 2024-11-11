@@ -35,7 +35,7 @@ void Channels::bind_socket(int process_id) {
     }
 }
 
-void Channels::send_message(int id, int process_id, Message msg) {
+int Channels::send_message(int id, int process_id, Message msg) {
 
     struct sockaddr_in dest_addr;
     memset(&dest_addr, 0, sizeof(dest_addr));
@@ -52,7 +52,7 @@ void Channels::send_message(int id, int process_id, Message msg) {
     msg_with_hash.push_back(msg_hash & 0xFF);
     msg_with_hash.push_back((msg_hash >> 8) & 0xFF);
 
-    sendto(sock, msg_with_hash.data(), msg_with_hash.size(), 0,
+    return sendto(sock, msg_with_hash.data(), msg_with_hash.size(), 0,
            (const struct sockaddr *)&dest_addr, sizeof(dest_addr));
 }
 

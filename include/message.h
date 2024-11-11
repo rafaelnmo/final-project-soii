@@ -27,7 +27,7 @@ struct Message {
     std::string sender_address;
     int msg_num;
     std::string msg_type;
-    uint8_t control_message;
+    uint8_t control_message;    // 1 if control message, 0 if content message, 
     std::vector<uint8_t> content;
     
     Message(std::string sender_address, int msg_num, std::string msg_type, const std::vector<uint8_t>& msg);
