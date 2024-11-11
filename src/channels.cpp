@@ -53,11 +53,12 @@ void Channels::send_message(int id, int process_id, Message msg) {
 
     int msg_hash = calculate_hash(new_message);
     if (this->conf == "FAILCHECK" || this->conf == "FULL") {
-        msg_hash += msg_hash;
+        msg_hash += msg_hash/2;
     }
 
     if (this->conf == "DELAY" || this->conf == "FULL"){
-        sleep(this->delay*100);
+        int rand_delay = rand()%(this->delay*100);
+        sleep(rand_delay);
     }
 
     std::vector<uint8_t> msg_with_hash = new_message;
