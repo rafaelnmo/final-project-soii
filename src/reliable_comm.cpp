@@ -342,7 +342,7 @@ int ReliableComm::urb_broadcast(const std::vector<int> id_list, const std::vecto
     } else {
         // Send NACK deliver
         log("NDEL","DEBUG");
-        beb_broadcast(id_list, "NEL", std::vector<uint8_t>{' '});
+        beb_broadcast(id_list, "NDL", std::vector<uint8_t>{' '});
     }
 
     log("***** End URB *****");
@@ -365,8 +365,8 @@ Message ReliableComm::deliver() {
         if (urb_sign.msg_type=="DEL") {
             log("DEL", "DEBUG");
             return msg;
-        } else if (urb_sign.msg_type=="NEL") {
-            log("NEL", "DEBUG");
+        } else if (urb_sign.msg_type=="NDL") {
+            log("NDL", "DEBUG");
             continue;
         }
     }

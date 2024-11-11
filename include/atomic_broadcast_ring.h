@@ -17,11 +17,14 @@ public:
 
     Message deliver() override;
     void listen();
-    int find_next_node(int id);
+    //int find_next_node(int id);
 
 private:
     int next_node_id;
     bool token = false;
+    std::queue<Message> deliver_queue;
+    std::condition_variable cv_token;
+    std::mutex mtx_token;
 };
 
 #endif 
