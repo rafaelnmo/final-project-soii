@@ -25,6 +25,12 @@ AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<s
         log("Starting ring with node " + std::to_string(next_node_id));
         token = true;
     }
+
+    std::thread deliver_listener(&AtomicBroadcastRing::deliver_thread, this);
+    deliver_listener.detach();
+
+    std::thread token_monitor_thread(&AtomicBroadcastRing::token_monitor, this);
+    token_monitor_thread.detach();
 }
 
 void AtomicBroadcastRing::signalHandler(int signum) {
@@ -138,56 +144,109 @@ int AtomicBroadcastRing::send_token() {
 }
 
 
+void AtomicBroadcastRing::deliver_thread() {
+    while (true) {
+        Message msg = receive_single_msg();
+
+        if (msg.msg_type=="TKT") {
+            log("Token being passed", "INFO");
+            if (msg.content.front() == process_id) {
+                log("Token Acquired", "INFO");
+                {
+                    std::unique_lock<std::mutex> lock(mtx_token);
+                    token = true;
+                }
+                cv_token.notify_all();
+            } else {
+                log("Token not acquired", "INFO");
+            }
+            channels->send_message(next_node_id, process_id, msg);
+        } else if (msg.msg_type=="TKV") {
+            log("Voting on token", "INFO");
+            if (msg.content.front() > process_id) {
+                msg.content = std::vector<uint8_t>{(unsigned char)process_id};
+            }
+            channels->send_message(next_node_id, process_id, msg);
+        }
+
+        // Deliver message to application
+        log("AB: Storing message from node "  + msg.sender_address);
+
+        // Forward the message to the next node in the ring unless it's the sender
+        if (msg.msg_num != process_id) {
+            channels->send_message(next_node_id, process_id, msg);
+        }
+
+        int counter = 0;
+        int max_tries = 3;
+
+        while (counter < max_tries) {
+            log("Waiting signal","INFO");
+            Message signal = receive_single_msg();
+
+            for (auto byte : signal.content) {
+                    std::cout << byte << std::endl;
+                }
+
+            if ((msg.sender_address) != process_address && (signal.content == std::vector<uint8_t>{'D','E','L'} || signal.content==std::vector<uint8_t>{'N','D','E','L'})) {
+                log("RESEND Signal");
+                channels->send_message(next_node_id, process_id, signal);
+
+                std::unique_lock<std::mutex> lock(mtx);
+                deliver_queue.push(msg);
+                cv.notify_all();
+
+                break;
+            } else {
+                counter++;
+                log("Wrong signal","WARNING");
+            }
+        }
+
+        Message tkn = receive_single_msg();
+
+        if (tkn.msg_type=="TKT") {
+            log("Token being passed", "INFO");
+            if (tkn.content.front() == process_id) {
+                log("Token Acquired", "INFO");
+                {
+                    std::unique_lock<std::mutex> lock(mtx_token);
+                    token = true;
+                }
+                cv_token.notify_all();
+            } else {
+                log("Token not acquired", "INFO");
+            }
+            channels->send_message(next_node_id, process_id, tkn);
+        }
+    }
+
+}
+
 Message AtomicBroadcastRing::deliver() {
-    Message msg = receive_single_msg();
+    Message msg;
 
-    // Deliver message to application
-    log("AB: Storing message from node "  + msg.sender_address);
-
-    // Forward the message to the next node in the ring unless it's the sender
-    if (msg.msg_num != process_id) {
-        channels->send_message(next_node_id, process_id, msg);
+    std::unique_lock<std::mutex> lock(mtx_deliver);
+    bool status = cv_deliver.wait_for(lock, std::chrono::seconds(5), [this] { return !deliver_queue.empty(); });
+    if (status) {
+        msg = deliver_queue.front();
+        deliver_queue.pop();
     } else {
-        return Message();
-    }
-
-    int counter = 0;
-    int max_tries = 3;
-
-    while (counter < max_tries) {
-        log("Waiting signal","INFO");
-        Message signal = receive_single_msg();
-
-        for (auto byte : signal.content) {
-                std::cout << byte << std::endl;
-            }
-
-        if ((msg.sender_address) != process_address && (signal.content == std::vector<uint8_t>{'D','E','L'} || signal.content==std::vector<uint8_t>{'N','D','E','L'})) {
-            log("RESEND Signal");
-            channels->send_message(next_node_id, process_id, signal);
-            break;
-        } else {
-            counter++;
-            log("Wrong signal","WARNING");
-        }
-    }
-
-    Message tkn = receive_single_msg();
-
-    if (tkn.msg_type=="TKT") {
-        log("Token being passed", "INFO");
-        if (tkn.content.front() == process_id) {
-            log("Token Acquired", "INFO");
-            {
-                std::unique_lock<std::mutex> lock(mtx_token);
-                token = true;
-            }
-            cv_token.notify_all();
-        } else {
-            log("Token not acquired", "INFO");
-        }
-        channels->send_message(next_node_id, process_id, tkn);
+        msg = Message();
     }
 
     return msg;
+}
+
+void AtomicBroadcastRing::token_monitor() {
+    while (true) {
+        std::unique_lock<std::mutex> lock(mtx_token_monitor);
+        bool status = cv_token_monitor.wait_for(lock, std::chrono::seconds(20), [this] { return (token); });
+        if (!status) {
+            log("Token process presumably dead, starting election", "INFO");
+        } else {
+            log("Token process still alive", "INFO");
+        }
+        sleep(10);
+    }
 }

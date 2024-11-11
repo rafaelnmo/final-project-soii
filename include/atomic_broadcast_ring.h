@@ -23,8 +23,15 @@ private:
     int next_node_id;
     bool token = false;
     std::queue<Message> deliver_queue;
+    std::condition_variable cv_deliver;
+    std::mutex mtx_deliver;
+
     std::condition_variable cv_token;
+    std::condition_variable cv_token_monitor;
     std::mutex mtx_token;
+    std::mutex mtx_token_monitor;
+
+    bool tkt_passsed = false;
 
     static void signalHandler(int signum);
     int send_token();
@@ -33,4 +40,4 @@ private:
     void deliver_thread();
 };
 
-#endif 
+#endif

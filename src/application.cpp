@@ -28,8 +28,8 @@ void Application::run(int process_id) {
         for (int i=0; i<3; i++) {
             // Wait to receive a message
             Message received = comm->deliver();
-            if (received.msg_num==-1) {
-                std::cout << "\n\n Nothing to receive \n";
+            if (received.msg_type=="ERR") {
+                std::cout << "\n\n ERROR: Nothing to receive \n";
                 continue;
             }
             std::cout << "\n\nReceived message from process " << received.sender_address << ": \n";
