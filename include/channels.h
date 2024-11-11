@@ -11,7 +11,7 @@ Types of conf:
 "REGULAR"   : Regular Operation, no failure injection, chance and maxdelay is ignored
 "LOSS"      : Random failure on send, use chance to determine what % of messages are dropped
 "DELAY"     : Random delay up to maxdelay*100 miliseconds
-"FAILCHECK" : Sends an incorrect checksum with the message
+"FAILCHECK" : Sends an incorrect checksum with the message use chance to determine what % of messages have wrong checksum
 "FULL"      : uses all failure injection settings at the same time
  */
 
