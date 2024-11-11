@@ -53,7 +53,10 @@ void Channels::send_message(int id, int process_id, Message msg) {
 
     int msg_hash = calculate_hash(new_message);
     if (this->conf == "FAILCHECK" || this->conf == "FULL") {
-        msg_hash += msg_hash/2;
+        int roll = rand()%101;
+        if (roll < this->chance){
+            msg_hash += msg_hash/2;
+        }
     }
 
     if (this->conf == "DELAY" || this->conf == "FULL"){
