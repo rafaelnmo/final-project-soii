@@ -241,12 +241,12 @@ Message AtomicBroadcastRing::deliver() {
 void AtomicBroadcastRing::token_monitor() {
     while (true) {
         std::unique_lock<std::mutex> lock(mtx_token_monitor);
-        bool status = cv_token_monitor.wait_for(lock, std::chrono::seconds(20), [this] { return (token); });
+        bool status = cv_token_monitor.wait_for(lock, std::chrono::seconds(10), [this] { return (token); });
         if (!status) {
             log("Token process presumably dead, starting election", "INFO");
         } else {
             log("Token process still alive", "INFO");
         }
-        sleep(10);
+        sleep(20);
     }
 }
