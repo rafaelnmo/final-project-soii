@@ -23,7 +23,7 @@ class Channels;
 
 class ReliableComm {
 public:
-    ReliableComm(int id, const std::map<int, std::pair<std::string, int>>& nodes, const std::string broadcast_type);
+    ReliableComm(int id, const std::map<int, std::pair<std::string, int>>& nodes, std::string broadcast_type, std::string conf, int chance, int delay);
     int send(int id, const std::vector<uint8_t>& message);    
     virtual int broadcast(const std::vector<uint8_t>& message);
     Message receive();
@@ -36,7 +36,6 @@ protected:
     int process_id;
     std::string process_address;
     
-private:
     enum State communication_state;
     std::map<int, std::pair<std::string, int>> nodes;
     std::string broadcast_type;

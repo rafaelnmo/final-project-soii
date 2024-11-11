@@ -11,13 +11,14 @@ void Application::run(int process_id) {
     std::vector<uint8_t> message3 = { 'T', 'h', 'i', 'r', 'd' };
 
     if (process_id==0) {
-
-        std::cout << "Broadcasting message1 -----" << std::endl;
-        int status = comm->send(1, message1);
-        std::cout << "Status do envio: " << status << std::endl;
+        for (int i=0; i<15; i++) {
+            std::cout << "Broadcasting message1 -----" << std::endl;
+            int status = comm->send(1, message1);
+            std::cout << "Status do envio: " << status << std::endl;
+        }
 
         // std::cout << "Broadcasting message2 -----" << std::endl;
-        // status = comm->broadcast(message2);
+        // status = comm->send(1, message2);
         // std::cout << "Status do envio: " << status << std::endl;
 
         // std::cout << "Broadcasting message3 -----" << std::endl;
@@ -25,11 +26,11 @@ void Application::run(int process_id) {
         // std::cout << "Status do envio: " << status << std::endl;
 
     } else {
-        for (int i=0; i<3; i++) {
+        for (int i=0; i<15; i++) {
             // Wait to receive a message
             Message received = comm->receive();
-            if (received.msg_num==-1) {
-                std::cout << "\n\n Nothing to receive \n";
+            if (received.msg_type=="ERR") {
+                std::cout << "\n\n ERROR: Nothing to receive \n";
                 continue;
             }
             std::cout << "\n\nReceived message from process " << received.sender_address << ": \n";

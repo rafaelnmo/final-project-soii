@@ -15,7 +15,7 @@ Message::Message(std::string sender_address, int msg_num, std::string msg_type, 
                 || (msg_type=="TKT")
                 || (msg_type=="TKN")
                 || (msg_type=="DEL")
-                || (msg_type=="NEL")) {
+                || (msg_type=="NDL")) {
             control_message = 1;
         } else {
             std::cerr << "Invalid message type" << std::endl;

@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <ctime>
 
+
 #define MAX_BUFFER_SIZE 1024
 
 namespace {
@@ -41,6 +42,8 @@ void Channels::bind_socket(int process_id) {
 
 void Channels::send_message(int id, int process_id, Message msg) {
 
+    std::string filename = "log" + std::to_string(process_id) + ".txt";
+
     struct sockaddr_in dest_addr;
     memset(&dest_addr, 0, sizeof(dest_addr));
     dest_addr.sin_family = AF_INET;
@@ -55,13 +58,12 @@ void Channels::send_message(int id, int process_id, Message msg) {
     if (this->conf == "FAILCHECK" || this->conf == "FULL") {
         int roll = rand()%101;
         if (roll < this->chance){
-            msg_hash += msg_hash/2;
+            msg_hash += 10;
+            std::ofstream my_file;
+            my_file.open(filename, std::ios_base::app);
+            my_file << "[CORRUPTION] Checksum error on message from " << process_id << " to " << id << std::endl;
+            my_file.close();
         }
-    }
-
-    if (this->conf == "DELAY" || this->conf == "FULL"){
-        int rand_delay = rand()%(this->delay*100);
-        sleep(rand_delay);
     }
 
     std::vector<uint8_t> msg_with_hash = new_message;
@@ -70,11 +72,24 @@ void Channels::send_message(int id, int process_id, Message msg) {
 
     if (this->conf == "LOSS" || this->conf == "FULL"){
         int roll = rand()%101;
-        if (roll < this->chance) {
+        if (roll > this->chance) {
             sendto(sock, msg_with_hash.data(), msg_with_hash.size(), 0, (const struct sockaddr *)&dest_addr, sizeof(dest_addr));
+            std::ofstream my_file;
+            my_file.open(filename, std::ios_base::app);
+            my_file << "[SUCCESS] Message from " << process_id << " to " << id << " sent" << std::endl;
+            my_file.close();
+        } else {
+            std::ofstream my_file;
+            my_file.open(filename, std::ios_base::app);
+            my_file << "[LOSS]Message from " << process_id << " to " << id << " was lost" << std::endl;
+            my_file.close();
         }
     } else if (this->conf == "REGULAR") {
         sendto(sock, msg_with_hash.data(), msg_with_hash.size(), 0, (const struct sockaddr *)&dest_addr, sizeof(dest_addr));
+        std::ofstream my_file;
+        my_file.open(filename, std::ios_base::app);
+        my_file << "[SUCCESS] Message from " << process_id << " to " << id << " sent" << std::endl;
+        my_file.close();
     }
 }
 

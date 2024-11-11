@@ -14,17 +14,22 @@ int main(int argc, char** argv) {
     };
 
     std::string broadcast_type = argv[2]; // "BE", "UR", or "AB"
+
+    std::string conf = "FULL";
+    int chance = 10;
+    int delay = 1;
+
     ReliableComm* comm;
 
     if (broadcast_type == "AB") {
         std::cout << "----- Executando Atomic Broadcast -----\n";
-        comm = new AtomicBroadcastRing(atoi(argv[1]), nodes);
+        comm = new AtomicBroadcastRing(atoi(argv[1]), nodes, conf, chance, delay);
     } else if(broadcast_type == "BE"){
         std::cout << "----- Executando Best Effort Broadcast -----\n";
-        comm = new ReliableComm(atoi(argv[1]), nodes, broadcast_type);
+        comm = new ReliableComm(atoi(argv[1]), nodes, broadcast_type, conf, chance, delay);
     } else if(broadcast_type == "UR"){
         std::cout << "----- Executando Uniform Reliable Broadcast -----\n";
-        comm = new ReliableComm(atoi(argv[1]), nodes, broadcast_type);
+        comm = new ReliableComm(atoi(argv[1]), nodes, broadcast_type, conf, chance, delay);
     }
 
     Application app(comm);

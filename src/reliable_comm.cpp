@@ -17,13 +17,14 @@
 
 jmp_buf jumpBuffer;
 
-ReliableComm::ReliableComm(int id, const std::map<int, std::pair<std::string, int>>& nodes, const std::string broadcast_type)
+ReliableComm::ReliableComm(int id, const std::map<int, std::pair<std::string, int>>& nodes, std::string broadcast_type,
+    std::string conf, int chance, int delay)
     : process_id(id), nodes(nodes), broadcast_type(broadcast_type) {
-    process_address = nodes.at(id).first + std::to_string(nodes.at(id).second);
+    process_address = nodes.at(id).first + ":" + std::to_string(nodes.at(id).second);
     msg_num = 0;
     communication_state = Waiting;
     // Initialize Channels
-    channels = new Channels(nodes);
+    channels = new Channels(nodes, conf, chance, delay);
     channels->bind_socket(id);
 
     // Create listener thread
@@ -107,12 +108,12 @@ int ReliableComm::send_message(int id, std::string msg_type, const std::vector<u
 
             std::signal(SIGALRM, signalHandler);
             pthread_sigmask(SIG_UNBLOCK, &newmask, nullptr);
-            ualarm(std::min(TIMEOUT_TIMER * 1000, 1000000), 0);
+            alarm(TIMEOUT_TIMER);
 
-            received =  send_syn_and_wait_ack(id);  // blocking function
+            received = send_syn_and_wait_ack(id);  // blocking function
 
             pthread_sigmask(SIG_UNBLOCK, &oldmask, nullptr);
-            ualarm(0,0);  // Cancel the alarm if function completes in time
+            alarm(0);;  // Cancel the alarm if function completes in time
 
             // send_syn() is complete.
             if (received.msg_type != "ACK") {
@@ -125,7 +126,7 @@ int ReliableComm::send_message(int id, std::string msg_type, const std::vector<u
             }
         } else {
             pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
-            ualarm(0, 0);
+            alarm(0);
             // If longjmp was called, we handle the timeout here
             std::cout << "Attempt " << counter << " timed out.\n";
             log("Send SYN timed out", "WARNING");
@@ -154,13 +155,13 @@ int ReliableComm::send_message(int id, std::string msg_type, const std::vector<u
 
             std::signal(SIGALRM, signalHandler);
             pthread_sigmask(SIG_UNBLOCK, &newmask, nullptr);
-            ualarm(std::min(TIMEOUT_TIMER * 1000, 1000000), 0);
+            alarm(TIMEOUT_TIMER);
 
             received = send_contents_and_wait_close(id, msg_type, message);
             //log("timeout on send contents and wait close", "WARNING");
 
             pthread_sigmask(SIG_UNBLOCK, &oldmask, nullptr);
-            ualarm(0,0);  // Cancel the alarm if function completes in time
+            alarm(0);  // Cancel the alarm if function completes in time
 
             if (received.msg_type != "CLS") {
                 log("received message other than CLOSE","WARNING");
@@ -172,7 +173,7 @@ int ReliableComm::send_message(int id, std::string msg_type, const std::vector<u
             }
         } else {
             pthread_sigmask(SIG_SETMASK, &oldmask, nullptr);
-            ualarm(0, 0);
+            alarm(0);
             // If longjmp was called, we handle the timeout here
             std::cout << "Attempt " << counter << " timed out.\n";
             log("Send CONTENTS timed out", "WARNING");
@@ -206,7 +207,8 @@ void ReliableComm::listen() {
         auto [msg, msg_hash] = channels->receive_message();
         
         std::unique_lock<std::mutex> lock(mtx);
-        if (!is_delivered(msg_hash) || msg.control_message == 1) {
+        if (!is_delivered(msg_hash)
+        || (msg.control_message)) {
             mark_delivered(msg_hash);
             message_queue.push(msg);
             cv.notify_all();
@@ -236,7 +238,7 @@ Message ReliableComm::send_ack_recv_contents(int received_sender_id) {
 
 std::optional<int> ReliableComm::findKeyByValue(std::string address) {
     for (const auto& [key, val] : this->nodes) {
-        if ((val.first + std::to_string(val.second)) == address) {
+        if ((val.first + ":" + std::to_string(val.second)) == address) {
             return key;  // Return the key if the value is found
         }
     }
@@ -290,8 +292,26 @@ Message ReliableComm::receive() {
             }
         }
     log("Sending CLOSE","DEBUG");
-    Message msg_close = Message(process_address, msg_num, "CLS", std::vector<uint8_t>{' '});
-    channels->send_message(received_sender_id, process_id, msg_close);
+
+    // if (setjmp(jumpBuffer)==0) {
+    //     for (int i; i<RETRY_COUNTER; i++) {
+    //         std::signal(SIGALRM, signalHandler);
+    //         pthread_sigmask(SIG_UNBLOCK, &newmask, nullptr);
+    //         alarm(TIMEOUT_TIMER);
+
+            Message msg_close = Message(process_address, msg_num, "CLS", std::vector<uint8_t>{'C', 'L', 'O', 'S', 'E'});
+            channels->send_message(received_sender_id, process_id, msg_close);
+
+    //         pthread_sigmask(SIG_UNBLOCK, &oldmask, nullptr);
+    //         alarm(0);  // Cancel the alarm if function completes in time  
+    //     }
+    // } else {
+    //     pthread_sigmask(SIG_UNBLOCK, &oldmask, nullptr);
+    //     alarm(0);  // Cancel the alarm if function completes in time  
+    //     log("CLOSE sent succesgfully", "DEBUG");
+    // }
+
+
     log("exiting receive()","DEBUG");
     return msg;
 }
@@ -323,7 +343,7 @@ int ReliableComm::urb_broadcast(const std::vector<int> id_list, const std::vecto
     } else {
         // Send NACK deliver
         log("NDEL","DEBUG");
-        beb_broadcast(id_list, "NEL", std::vector<uint8_t>{' '});
+        beb_broadcast(id_list, "NDL", std::vector<uint8_t>{' '});
     }
 
     log("***** End URB *****");
@@ -346,8 +366,8 @@ Message ReliableComm::deliver() {
         if (urb_sign.msg_type=="DEL") {
             log("DEL", "DEBUG");
             return msg;
-        } else if (urb_sign.msg_type=="NEL") {
-            log("NEL", "DEBUG");
+        } else if (urb_sign.msg_type=="NDL") {
+            log("NDL", "DEBUG");
             continue;
         }
     }
