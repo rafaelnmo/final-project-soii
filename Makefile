@@ -10,7 +10,7 @@ OBJS = $(SRCS:.cpp=.o)
 # Define the executable
 TARGET = my_project
 
-all: $(TARGET)
+all: clean $(TARGET)
 
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS)
