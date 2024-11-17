@@ -16,6 +16,12 @@ AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<s
     : ReliableComm(id, nodes, "AB", conf, chance, delay) {
     // Determine the next node in the ring
     
+
+    // Initialize participant states to Uninitialized
+    for (const auto& node : nodes) {
+        participant_states[node.first] = ParticipantState::Uninitialized;
+    }
+
     auto it = nodes.find(id);
     if (++it == nodes.end()) {
         it = nodes.begin();
@@ -27,12 +33,154 @@ AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<s
         token = true;
     }
 
+    // Start the heartbeat and defect detection threads
+    std::thread heartbeat_thread(&AtomicBroadcastRing::send_heartbeat, this);
+    heartbeat_thread.detach();
+
+    std::thread defect_detection_thread(&AtomicBroadcastRing::detect_defective_processes, this);
+    defect_detection_thread.detach();
+
     std::thread deliver_listener(&AtomicBroadcastRing::deliver_thread, this);
     deliver_listener.detach();
 
     std::thread token_monitor_thread(&AtomicBroadcastRing::token_monitor, this);
     token_monitor_thread.detach();
 }
+
+// Heartbeat message sending logic
+void AtomicBroadcastRing::send_heartbeat() {
+    while (true) {
+        std::vector<uint8_t> heartbeat_msg;
+        for (const auto& entry : participant_states) {
+            heartbeat_msg.push_back(static_cast<uint8_t>(entry.second));  // Serialize participant state
+        }
+
+        // Send heartbeat to all participants (except self)
+        for (const auto& node : nodes) {
+            if (node.first != process_id) {
+                channels->send_message(node.first, process_id, Message(process_address, msg_num, "HEARTBEAT", heartbeat_msg));
+            }
+        }
+
+        // Sleep for the heartbeat interval
+        std::this_thread::sleep_for(std::chrono::milliseconds(heartbeat_interval));
+    }
+}
+
+// Process received heartbeat messages
+void AtomicBroadcastRing::process_heartbeat(const Message& msg) {
+    std::vector<uint8_t> heartbeat_msg = msg.content;
+    int i = 0;
+    for (auto& entry : participant_states) {
+        entry.second = static_cast<ParticipantState>(heartbeat_msg[i]);
+        i++;
+    }
+
+    // If the sender is uninitialized, mark it as active
+    if (participant_states[msg.sender_address] == ParticipantState::Uninitialized) {
+        participant_states[msg.sender_address] = ParticipantState::Active;
+    }
+}
+
+// Detect defective processes based on heartbeats
+void AtomicBroadcastRing::detect_defective_processes() {
+    while (true) {
+        // Check the heartbeat statuses of participants
+        for (auto& entry : participant_states) {
+            int suspicious_count = 0;
+
+            // If the participant is suspicious, increment the counter
+            if (entry.second == ParticipantState::Suspicious) {
+                suspicious_count++;
+            }
+
+            // If more than half of the processes suspect this participant, mark it as defective
+            if (suspicious_count > (participant_states.size() / 2)) {
+                entry.second = ParticipantState::Defective;
+            }
+        }
+
+        // Sleep before checking again
+        std::this_thread::sleep_for(std::chrono::milliseconds(heartbeat_interval));
+    }
+}
+
+// Buffer messages for uninitialized nodes
+void AtomicBroadcastRing::buffer_message_for_uninitialized(const Message& msg) {
+    if (participant_states[msg.receiver_address] == ParticipantState::Uninitialized) {
+        message_buffers[msg.receiver_address].push(msg);
+    }
+}
+
+// Deliver buffered messages when the node becomes active
+void AtomicBroadcastRing::deliver_buffered_messages(int node_id) {
+    if (participant_states[node_id] == ParticipantState::Active) {
+        while (!message_buffers[node_id].empty()) {
+            Message msg = message_buffers[node_id].front();
+            message_buffers[node_id].pop();
+            deliver_message(msg);  // Deliver message to the application
+        }
+    }
+}
+
+// Update the broadcast logic to handle uninitialized states and buffered messages
+int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message) {
+    std::unique_lock<std::mutex> lock(mtx_token);
+    cv_token.wait(lock, [this] { return token; });
+
+    // Send message to the ring
+    int status = broadcast_ring(message, 3);
+    if (status == 0) {
+        broadcast_ring(std::vector<uint8_t>{'D', 'E', 'L'}, 1);  // Delivery signal
+    } else {
+        broadcast_ring(std::vector<uint8_t>{'N', 'D', 'E', 'L'}, 1);  // Negative delivery signal
+    }
+
+    send_token();  // Pass token to the next node
+
+    return status;
+}
+
+// Process incoming messages and handle state changes
+void AtomicBroadcastRing::deliver_thread() {
+    while (true) {
+        Message msg = receive_single_msg();
+
+        if (msg.msg_type == "HEARTBEAT") {
+            process_heartbeat(msg);  // Process the heartbeat message
+        }
+
+        // Buffer messages for uninitialized processes
+        buffer_message_for_uninitialized(msg);
+
+        // Deliver buffered messages when the process is active
+        deliver_buffered_messages(msg.receiver_address);
+
+        // Further message processing...
+    }
+}
+
+// Token monitoring logic (checking if the token is alive)
+void AtomicBroadcastRing::token_monitor() {
+    while (true) {
+        std::unique_lock<std::mutex> lock(mtx_token_monitor);
+        bool status = cv_token_monitor.wait_for(lock, std::chrono::seconds(10), [this] { return (token); });
+        if (!status) {
+            log("Token process presumably dead, starting election", "INFO");
+        } else {
+            log("Token process still alive", "INFO");
+        }
+        sleep(20);
+    }
+}
+
+// Signal handler (e.g., for timeouts)
+void AtomicBroadcastRing::signalHandler(int signum) {
+    std::cout << "Timeout reached! Returning from blocking function.\n";
+    longjmp(jumpBuffer_atomic, 1);
+}
+
+
 
 void AtomicBroadcastRing::signalHandler(int signum) {
     std::cout << "Timeout reached! Returning from blocking function.\n";
