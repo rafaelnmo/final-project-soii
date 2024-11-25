@@ -216,12 +216,6 @@ void ReliableComm::listen() {
                 htb_queue.push(msg);
                 //log("Size of HTB queue: "+std::to_string(htb_queue.size()), "DEBUG");
                 cv_htb.notify_all();
-            } else if (msg.msg_type == "HSY") {
-                // Heartbeat Sync message
-                //log("Heartbeat message received", "DEBUG");
-                hsy_queue.push(msg);
-                //log("Size of HTB queue: "+std::to_string(htb_queue.size()), "DEBUG");
-                cv_hsy.notify_all();
             } else {
                 //log("Normal Message received", "DEBUG");
                 mark_delivered(msg_hash);
