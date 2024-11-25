@@ -23,7 +23,7 @@ enum class ParticipantState {
     Defective       // 3
 };
 
-class AtomicBroadcastRing : public ReliableCom {
+class AtomicBroadcastRing : public ReliableComm {
 public:
 
     AtomicBroadcastRing(int id, const std::map<int, std::pair<std::string, int>>& nodes,
