@@ -26,6 +26,10 @@ Possible message types:
     TKT - Token transfer between peers
     TKN - Token notify, notify all peers that token is being transferred
 
+Failure detection
+    HTB - Heartbeat
+    HSY - Heartbeat sync states of processes
+
 */
 
 struct Message {

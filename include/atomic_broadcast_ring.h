@@ -58,6 +58,7 @@ private:
 
     // Heartbeat interval (in milliseconds)
     int heartbeat_interval = 1000;  // Default is 1 second
+    int failures;
 
     // Failure detection methods
     void send_heartbeat();  // Periodically send heartbeat messages
@@ -72,6 +73,10 @@ private:
 
     void token_monitor();
     void deliver_thread();
+
+    int find_key(std::string address);
+    void print_states();
+    void htb_handler_thread();
 };
 
 #endif

@@ -99,7 +99,9 @@ int main(int argc, char** argv) {
         broadcast_type = config.second;
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
-        return 1;
+        auto config = parseConfig(std::string("../config.txt"));
+        nodes = config.first;
+        broadcast_type = config.second;
     }
 
     // Debug prints to check what values are passed
@@ -107,7 +109,7 @@ int main(int argc, char** argv) {
     std::cout << "Broadcast Type: " << broadcast_type << "\n\n";
 
     std::string conf = "FULL";
-    int chance = 10;
+    int chance = 0;
     int delay = 1;
 
     ReliableComm* comm;

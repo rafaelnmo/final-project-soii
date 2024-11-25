@@ -209,9 +209,19 @@ void ReliableComm::listen() {
         std::unique_lock<std::mutex> lock(mtx);
         if (!is_delivered(msg_hash)
         || (msg.control_message)) {
-            mark_delivered(msg_hash);
-            message_queue.push(msg);
-            cv.notify_all();
+            log("Received new message", "DEBUG");
+            if (msg.msg_type == "HTB" || msg.msg_type == "HSY") {
+                // Heartbeat message
+                log("Heartbeat message received", "DEBUG");
+                htb_queue.push(msg);
+                log("Size of HTB queue: "+std::to_string(htb_queue.size()), "DEBUG");
+                cv_htb.notify_all();
+            } else {
+                log("Normal Message received", "DEBUG");
+                mark_delivered(msg_hash);
+                message_queue.push(msg);
+                cv.notify_all();
+            }
         }
     }
 }
