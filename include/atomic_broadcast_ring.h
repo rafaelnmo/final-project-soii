@@ -17,10 +17,10 @@
 
 // Participant States
 enum class ParticipantState {
-    Uninitialized,
-    Active,
-    Suspicious,
-    Defective
+    Uninitialized,  // 0
+    Active,         // 1
+    Suspicious,     // 2
+    Defective       // 3
 };
 
 class AtomicBroadcastRing : public ReliableComm {
@@ -34,9 +34,11 @@ public:
 
     Message deliver() override;
     void listen();
-    //int find_next_node(int id);
+    
 
 private:
+    std::map<int, std::set<uint8_t>> witness_of_nodes;  // vector to represent the amount of failures detected by other nodes
+
     // Participant states (map of process ID to state)
     std::map<int, ParticipantState> participant_states;
 
@@ -60,7 +62,12 @@ private:
     int heartbeat_interval = 1000;  // Default is 1 second
     int failures;
 
+    std::condition_variable cv_send_htb;
+    std::mutex mtx_send_htb;
+    bool send_htb = false;
+
     // Failure detection methods
+    int find_next_node(int key);    // check for next active node in ring
     void send_heartbeat();  // Periodically send heartbeat messages
     void process_heartbeat(const Message& msg);  // Process received heartbeat messages
     void detect_defective_processes();  // Detect faulty processes based on heartbeats

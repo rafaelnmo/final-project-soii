@@ -209,15 +209,21 @@ void ReliableComm::listen() {
         std::unique_lock<std::mutex> lock(mtx);
         if (!is_delivered(msg_hash)
         || (msg.control_message)) {
-            log("Received new message", "DEBUG");
-            if (msg.msg_type == "HTB" || msg.msg_type == "HSY") {
+            //log("Received new message", "DEBUG");
+            if (msg.msg_type == "HTB") {
                 // Heartbeat message
-                log("Heartbeat message received", "DEBUG");
+                //log("Heartbeat message received", "DEBUG");
                 htb_queue.push(msg);
-                log("Size of HTB queue: "+std::to_string(htb_queue.size()), "DEBUG");
+                //log("Size of HTB queue: "+std::to_string(htb_queue.size()), "DEBUG");
                 cv_htb.notify_all();
+            } else if (msg.msg_type == "HSY") {
+                // Heartbeat Sync message
+                //log("Heartbeat message received", "DEBUG");
+                hsy_queue.push(msg);
+                //log("Size of HTB queue: "+std::to_string(htb_queue.size()), "DEBUG");
+                cv_hsy.notify_all();
             } else {
-                log("Normal Message received", "DEBUG");
+                //log("Normal Message received", "DEBUG");
                 mark_delivered(msg_hash);
                 message_queue.push(msg);
                 cv.notify_all();

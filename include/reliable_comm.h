@@ -52,6 +52,10 @@ protected:
     std::condition_variable cv_htb;
     std::mutex mtx_htb;
 
+    std::queue<Message> hsy_queue;
+    std::condition_variable cv_hsy;
+    std::mutex mtx_hsy;
+
     void listen();
     int send_message(int id, std::string msg_type, const std::vector<uint8_t>& message);
     int send_ctrl(int id, std::string msg_type);

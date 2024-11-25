@@ -6,6 +6,7 @@
 #include <csetjmp>
 #include <optional>
 #include <string>
+#include <cmath>
 
 #define ATOMIC_TIMEOUT 10
 
@@ -13,7 +14,7 @@ jmp_buf jumpBuffer_atomic;
 
 AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<std::string, int>>& nodes,
     std::string conf, int chance, int delay)
-    : ReliableComm(id, nodes, "AB", conf, chance, delay) {    
+    : ReliableComm(id, nodes, "AB", conf, chance, delay) {
 
     // Initialize participant states to Uninitialized
     for (const auto& node : nodes) {
@@ -21,12 +22,14 @@ AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<s
     }
     participant_states[id] = ParticipantState::Active;
 
-    // Determine the next node in the ring
-    auto it = nodes.find(id);
-    if (++it == nodes.end()) {
-        it = nodes.begin();
+    // initialize other nodes responses to suspect everyone
+    for (const auto& node : nodes) {
+        witness_of_nodes[node.first] = std::set<uint8_t>{};
     }
-    next_node_id = it->first;
+    witness_of_nodes[id].insert(id);
+
+    // Determine the next node in the ring
+    next_node_id = find_next_node(process_id);
 
     // set amount of failures
     failures = 1;
@@ -53,19 +56,29 @@ AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<s
     htb_handler.detach();
 }
 
+int AtomicBroadcastRing::find_next_node(int key) {
+    auto it = nodes.find(key);
+    if (++it == nodes.end()) {
+        it = nodes.begin();
+    }
+    std::cout << "Next node: " << it->first << std::endl;
+    return it->first;
+}
+    
+
 // Heartbeat message sending logic
 void AtomicBroadcastRing::send_heartbeat() {
     while (true) {
-        // std::vector<uint8_t> heartbeat_msg;
-        // for (const auto& entry : participant_states) {
-        //     heartbeat_msg.push_back(static_cast<uint8_t>(entry.second));  // Serialize participant state
-        // }
+        std::vector<uint8_t> heartbeat_msg;
+        for (const auto& entry : participant_states) {
+            heartbeat_msg.push_back(static_cast<uint8_t>(entry.second));  // Serialize all participants states
+        }
 
         // Send heartbeat to all participants (except self)
         for (const auto& node : nodes) {
             if (node.first != process_id) {
-                log("Sending heartbeat to node " + std::to_string(node.first), "INFO");
-                channels->send_message(node.first, process_id, Message(process_address, msg_num, "HTB", std::vector<uint8_t>{}));
+                //log("Sending heartbeat to node " + std::to_string(node.first), "INFO");
+                channels->send_message(node.first, process_id, Message(process_address, msg_num, "HTB", heartbeat_msg));
             }
         }
 
@@ -76,32 +89,32 @@ void AtomicBroadcastRing::send_heartbeat() {
 
 // Process received heartbeat messages
 void AtomicBroadcastRing::process_heartbeat(const Message& msg) {
-    // std::vector<uint8_t> heartbeat_msg = msg.content;
-    // int i = 0;
-    // for (auto& entry : participant_states) {
-    //     entry.second = static_cast<ParticipantState>(heartbeat_msg[i]);
-    //     i++;
-    // }
+    //log("Processing heartbeat message", "INFO");
 
-    log("Processing heartbeat message", "INFO");
     int key = find_key(msg.sender_address);
 
     // If the sender is uninitialized, mark it as active
     if (participant_states[key] == ParticipantState::Uninitialized) {
-        log("Node " + std::to_string(key) + " is now active", "INFO");
+        //log("Node " + std::to_string(key) + " is now active", "INFO");
         participant_states[key] = ParticipantState::Active;
-        channels->send_message(key, process_id, Message(process_address, msg_num, "HTB", std::vector<uint8_t>{}));
-    } else if (participant_states[key] == ParticipantState::Active) {
-        log("Node " + std::to_string(key) + " is still active", "INFO");
-    } else if (participant_states[key] == ParticipantState::Suspicious) {
-        log("Node " + std::to_string(key) + " is still suspicious", "INFO");
-    } else if (participant_states[key] == ParticipantState::Defective) {
-        log("Node " + std::to_string(key) + " is still defective", "INFO");
-    } else {
-        log("Unknown state for node " + std::to_string(key), "ERROR");
+        //witness_of_nodes[key].insert(key);
+        witness_of_nodes[key].insert(process_id);
+        for (int i=0; i<static_cast<int>(msg.content.size()); i++) {
+            if (msg.content[i] == 1) {
+                witness_of_nodes[i].insert(key);
+            }
+        }
+        std::vector<uint8_t> heartbeat_msg;
+        for (const auto& entry : participant_states) {
+            if (entry.first != process_id && entry.second == ParticipantState::Active) {
+                heartbeat_msg.push_back(static_cast<uint8_t>(entry.second));  // Serialize all participants states
+            }
+        }
+        channels->send_message(key, process_id, Message(process_address, msg_num, "HTB", heartbeat_msg));
     }
-
-    log("Heartbeat message processed", "INFO");
+    // else if (participant_states[key] == ParticipantState::Active) {
+    //     //log("Node " + std::to_string(key) + " is still active", "INFO");
+    // }
 }
 
 int AtomicBroadcastRing::find_key(std::string address) {
@@ -115,24 +128,59 @@ int AtomicBroadcastRing::find_key(std::string address) {
 
 // Detect defective processes based on heartbeats
 void AtomicBroadcastRing::detect_defective_processes() {
+    send_htb = true;
     while (true) {
-        // Check the heartbeat statuses of participants
-        for (auto& entry : participant_states) {
-            int suspicious_count = 0;
+        // three steps for a round:
+        // 1- collect HTBs for alloted time
+        // 2- Make final decision based on the collected information
 
-            // If the participant is suspicious, increment the counter
-            if (entry.second == ParticipantState::Suspicious) {
-                suspicious_count++;
-            }
+        // Sleep before checking again
+        std::this_thread::sleep_for(std::chrono::milliseconds(5*heartbeat_interval));
+        log("Detecting defective processes", "INFO");
 
-            // If more than half of the processes suspect this participant, mark it as defective
-            if (suspicious_count > (2*failures)+1) {
-                entry.second = ParticipantState::Defective;
+        // exchange HSYs
+        int amount_alive = 0;
+        for (auto&entry :participant_states) {
+            if (entry.second == ParticipantState::Active) {
+                amount_alive++;
             }
         }
 
-        // Sleep before checking again
-        std::this_thread::sleep_for(std::chrono::milliseconds(heartbeat_interval));
+        if (amount_alive <= (2*failures)) {
+            //log("Not enough nodes alive alive, no need to exchange HSYs", "INFO");
+            print_states();
+            for (const auto& node : nodes) {
+                participant_states[node.first] = ParticipantState::Uninitialized;
+            }
+            participant_states[process_id] = ParticipantState::Active;
+            // initialize other nodes responses to suspect everyone
+            for (const auto& node : nodes) {
+                witness_of_nodes[node.first].clear();
+            }
+            witness_of_nodes[process_id].insert(process_id);
+            continue;
+        } else {
+            for (auto& entry:witness_of_nodes) {
+                if (static_cast<int>(entry.second.size()) < (2*failures)+1) {
+                    //log("Node " + std::to_string(entry.first) + " is down", "INFO");
+                    participant_states[entry.first] = ParticipantState::Uninitialized;
+                } else {
+                    participant_states[entry.first] = ParticipantState::Active;
+                }
+            }
+        }
+        //All failure detection done
+
+        print_states();
+        for (const auto& node : nodes) {
+            participant_states[node.first] = ParticipantState::Uninitialized;
+        }
+        participant_states[process_id] = ParticipantState::Active;
+        // initialize other nodes responses to suspect everyone
+        for (const auto& node : nodes) {
+            witness_of_nodes[node.first].clear();
+        }
+        witness_of_nodes[process_id].insert(process_id);
     }
 }
 
@@ -162,7 +210,7 @@ void AtomicBroadcastRing::htb_handler_thread() {
         std::unique_lock<std::mutex> lock(mtx_htb);
         bool status = cv_htb.wait_for(lock, std::chrono::seconds(5), [this] { return !htb_queue.empty(); });
         if (status) {
-            log("Heartbeat message received", "INFO");
+            //log("Heartbeat message received", "INFO");
             msg = htb_queue.front();
             htb_queue.pop();
 
@@ -171,7 +219,6 @@ void AtomicBroadcastRing::htb_handler_thread() {
         } else {
             log("No heartbeat messages received", "INFO");
         }
-        print_states();
     }
 }
 
