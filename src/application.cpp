@@ -26,7 +26,7 @@ void Application::run(int process_id) {
         // std::cout << "Status do envio: " << status << std::endl;
 
     } else {
-        for (int i=0; i<15; i++) {
+        while (true) {
             // Wait to receive a message
             Message received = comm->receive();
             if (received.msg_type=="ERR") {
