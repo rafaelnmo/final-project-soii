@@ -28,7 +28,7 @@ Possible message types:
 
 Failure detection
     HTB - Heartbeat
-    HSY - Heartbeat sync states of processes
+    HSY - Heartbeat sync states of processes - NOT USED
 
 */
 

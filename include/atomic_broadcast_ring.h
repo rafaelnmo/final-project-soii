@@ -23,7 +23,7 @@ enum class ParticipantState {
     Defective       // 3
 };
 
-class AtomicBroadcastRing : public ReliableComm {
+class AtomicBroadcastRing : public ReliableCom {
 public:
 
     AtomicBroadcastRing(int id, const std::map<int, std::pair<std::string, int>>& nodes,
@@ -37,7 +37,8 @@ public:
     
 
 private:
-    std::map<int, std::set<uint8_t>> witness_of_nodes;  // vector to represent the amount of failures detected by other nodes
+    // Witness of nodes (map of process ID to set of process IDs that mark it as alive)
+    std::map<int, std::set<uint8_t>> witness_of_nodes;
 
     // Participant states (map of process ID to state)
     std::map<int, ParticipantState> participant_states;

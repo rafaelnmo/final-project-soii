@@ -95,15 +95,16 @@ void AtomicBroadcastRing::process_heartbeat(const Message& msg) {
 
     // If the sender is uninitialized, mark it as active
     if (participant_states[key] == ParticipantState::Uninitialized) {
-        //log("Node " + std::to_string(key) + " is now active", "INFO");
         participant_states[key] = ParticipantState::Active;
-        //witness_of_nodes[key].insert(key);
-        witness_of_nodes[key].insert(process_id);
+
+        witness_of_nodes[key].insert(process_id);   // Insert this process as witness of sender
+        // For every node sender knows is alive, mark it as a witness
         for (int i=0; i<static_cast<int>(msg.content.size()); i++) {
             if (msg.content[i] == 1) {
                 witness_of_nodes[i].insert(key);
             }
         }
+        // Answer with a heartbeat of our own witnesses to sender
         std::vector<uint8_t> heartbeat_msg;
         for (const auto& entry : participant_states) {
             if (entry.first != process_id && entry.second == ParticipantState::Active) {
@@ -112,9 +113,6 @@ void AtomicBroadcastRing::process_heartbeat(const Message& msg) {
         }
         channels->send_message(key, process_id, Message(process_address, msg_num, "HTB", heartbeat_msg));
     }
-    // else if (participant_states[key] == ParticipantState::Active) {
-    //     //log("Node " + std::to_string(key) + " is still active", "INFO");
-    // }
 }
 
 int AtomicBroadcastRing::find_key(std::string address) {
@@ -130,7 +128,7 @@ int AtomicBroadcastRing::find_key(std::string address) {
 void AtomicBroadcastRing::detect_defective_processes() {
     send_htb = true;
     while (true) {
-        // three steps for a round:
+        // two steps for a round:
         // 1- collect HTBs for alloted time
         // 2- Make final decision based on the collected information
 
@@ -138,7 +136,7 @@ void AtomicBroadcastRing::detect_defective_processes() {
         std::this_thread::sleep_for(std::chrono::milliseconds(5*heartbeat_interval));
         log("Detecting defective processes", "INFO");
 
-        // exchange HSYs
+        // Check amount alive
         int amount_alive = 0;
         for (auto&entry :participant_states) {
             if (entry.second == ParticipantState::Active) {
@@ -147,7 +145,7 @@ void AtomicBroadcastRing::detect_defective_processes() {
         }
 
         if (amount_alive <= (2*failures)) {
-            //log("Not enough nodes alive alive, no need to exchange HSYs", "INFO");
+            //log("Not enough nodes alive alive, no need to continue", "INFO");
             print_states();
             for (const auto& node : nodes) {
                 participant_states[node.first] = ParticipantState::Uninitialized;
@@ -157,6 +155,7 @@ void AtomicBroadcastRing::detect_defective_processes() {
             for (const auto& node : nodes) {
                 witness_of_nodes[node.first].clear();
             }
+            // put process as a witness of itself
             witness_of_nodes[process_id].insert(process_id);
             continue;
         } else {
@@ -169,8 +168,8 @@ void AtomicBroadcastRing::detect_defective_processes() {
                 }
             }
         }
-        //All failure detection done
 
+        // reset witness of nodes for next round
         print_states();
         for (const auto& node : nodes) {
             participant_states[node.first] = ParticipantState::Uninitialized;
@@ -185,22 +184,22 @@ void AtomicBroadcastRing::detect_defective_processes() {
 }
 
 // Buffer messages for uninitialized nodes
-// void AtomicBroadcastRing::buffer_message_for_uninitialized(const Message& msg) {
-//     if (participant_states[find_key(msg.sender_address)] == ParticipantState::Uninitialized) {
-//         message_buffers[find_key(msg.sender_address)].push(msg);
-//     }
-// }
+void AtomicBroadcastRing::buffer_message_for_uninitialized(const Message& msg) {
+    if (participant_states[find_key(msg.sender_address)] == ParticipantState::Uninitialized) {
+        message_buffers[find_key(msg.sender_address)].push(msg);
+    }
+}
 
 // Deliver buffered messages when the node becomes active
-// void AtomicBroadcastRing::deliver_buffered_messages(int node_id) {
-//     if (participant_states[node_id] == ParticipantState::Active) {
-//         while (!message_buffers[node_id].empty()) {
-//             Message msg = message_buffers[node_id].front();
-//             message_buffers[node_id].pop();
-//             deliver_queue.push(msg);  // Deliver message to the application
-//         }
-//     }
-// }
+void AtomicBroadcastRing::deliver_buffered_messages(int node_id) {
+    if (participant_states[node_id] == ParticipantState::Active) {
+        while (!message_buffers[node_id].empty()) {
+            Message msg = message_buffers[node_id].front();
+            message_buffers[node_id].pop();
+            deliver_queue.push(msg);  // Deliver message to the application
+        }
+    }
+}
 
 // Process incoming messages and handle state changes
 void AtomicBroadcastRing::htb_handler_thread() {
