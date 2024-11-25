@@ -35,6 +35,7 @@ Para compilar e executar a aplicação que utiliza a biblioteca de comunicação
      │   ├── main.cpp
      │   ├── message.cpp
      │   └── atomic_broadcast_ring.cpp
+     ├── config.txt
      ├── Makefile
      └── ...
      ```
@@ -70,24 +71,47 @@ Após a execução do comando make, verifique se o executável __my_project__ fo
      │   ├── main.cpp
      │   ├── message.cpp
      │   └── atomic_broadcast_ring.cpp
+     ├── config.txt
      ├── Makefile
      ├── my_project
      └── ...
    ```
 Se __my_project__ estiver presente, a compilação foi bem-sucedida.
 
-## Passo 3: Execução da Aplicação
 
-Agora que você tem o executável, você pode executá-lo diretamente no terminal. Abra dois terminais e execute duas aplicações que irão se comunicar:
+## Passo 3: Arquivo `config.txt`
+
+O arquivo `config.txt` é utilizado para configurar os nodos da rede distribuída e o tipo de broadcast a ser utilizado. Ele contém as seguintes seções principais:
+
+### 1. Definição dos Nodos da Rede
+- Cada nodo é identificado por um **ID único** (número inteiro) e seu respectivo **endereço IP:porta**.
+- A lista de nodos define todos os participantes da rede distribuída.
+- Exemplo de configuração:
+
+  ```plaintext
+  nodes = {{0, 127.0.0.1:3000}, {1, 127.0.0.1:3001}, {2, 127.0.0.1:3002}, {3, 127.0.0.1:3003}, {4, 127.0.0.1:3004}};
+  ```
+
+### 2. Definição dos tipo de broadcast
+Especifica o método de envio de mensagens na rede.
+Exemplo de configuração:
+  ```plaintext
+   broadcast = AB;
+   ```
+A opção AB indica o uso de Atomic Broadcast, garantindo que todas as mensagens sejam entregues aos nodos na mesma ordem, essencial para consistência em sistemas distribuídos.
+
+## Passo 4: Execução da Aplicação
+
+Agora que você tem o executável, você pode executá-lo diretamente no terminal. Abra um terminal para cada nodo da rede e execute duas aplicações que irão se comunicar. Para execução deve passar o nodo da rede e o arquivo de configuração:
 ```bash
-./my_project 1 AB
+./my_project 1 config.txt
 ```
 
 ```bash
-./my_project 0 AB
+./my_project 0 config.txt
 ```
 
-## Passo 4: Limpeza dos Arquivos de Build
+## Passo 5: Limpeza dos Arquivos de Build
 
 Se você deseja remover os arquivos objetos e o executável para liberar espaço, você pode usar o comando:
 ``` bash
