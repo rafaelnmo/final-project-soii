@@ -10,6 +10,9 @@ OBJS = $(SRCS:.cpp=.o)
 # Define the executable
 TARGET = my_project
 
+# Define log files
+LOGS = log*.txt
+
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
@@ -21,4 +24,4 @@ $(TARGET): $(OBJS)
 
 # Clean up build files
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(OBJS) $(TARGET) $(LOGS)
