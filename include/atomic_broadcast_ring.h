@@ -14,6 +14,8 @@
 #include <thread>
 #include <chrono>
 #include <iostream>
+#include <set>
+#include <atomic>
 
 // Participant States
 enum class ParticipantState {
@@ -26,11 +28,20 @@ enum class ParticipantState {
 class AtomicBroadcastRing : public ReliableComm {
 public:
 
+    // Constructor with extended group functionality
     AtomicBroadcastRing(int id, const std::map<int, std::pair<std::string, int>>& nodes,
-                        std::string conf, int chance, int delay);
+        const std::string& conf, int chance, int delay,
+        const std::map<std::string, std::set<int>>& initial_groups = {});
 
     int broadcast(const std::vector<uint8_t>& message) override;
-    int broadcast_ring(const std::vector<uint8_t>& message, int max_attempts);
+    
+    // ----- GROUPS -----
+    // Broadcast a message to a specific group
+    int broadcast_ring(const std::vector<uint8_t>& message, int max_attempts, const std::string& group_name);
+    // Method to dynamically create a new group
+    void create_group(const std::string& group_name);
+    // Method to join an existing group
+    void join_group(const std::string& group_name);
 
     Message deliver() override;
     void listen();
@@ -45,6 +56,20 @@ private:
 
     // Buffers to store messages for uninitialized processes
     std::map<int, std::queue<Message>> message_buffers;
+
+    // ----- GROUPS -----
+    // Group-related data structures
+    std::map<std::string, std::set<int>> groups; // Groups and their members
+    std::set<std::string> active_groups;         // Groups this node is active in
+    std::mutex group_mtx;                        // Mutex for synchronizing group data
+
+    // Serialize and deserialize group join messages
+    std::vector<uint8_t> serialize_group_message(const std::string& group_name, int node_id);
+    std::pair<std::string, int> deserialize_group_message(const std::vector<uint8_t>& msg);
+    // Process incoming join messages
+    void process_join_message(const Message& msg);
+
+    // ----------------
 
     int next_node_id;
     bool token = false;
