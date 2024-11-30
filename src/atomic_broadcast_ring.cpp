@@ -12,9 +12,16 @@
 
 jmp_buf jumpBuffer_atomic;
 
+// Extend the configuration to include groups
 AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<std::string, int>>& nodes,
-    std::string conf, int chance, int delay)
-    : ReliableComm(id, nodes, "AB", conf, chance, delay) {
+    const std::string& conf, int chance, int delay, const std::map<std::string, std::set<int>>& initial_groups)
+    : ReliableComm(id, nodes, "AB", conf, chance, delay), groups(initial_groups) {
+
+    for (const auto& group : groups) {
+        if (group.second.count(id)) {
+            active_groups.insert(group.first);
+        }
+    }
 
     // Initialize participant states to Uninitialized
     for (const auto& node : nodes) {
@@ -84,6 +91,8 @@ void AtomicBroadcastRing::send_heartbeat() {
 
         // Sleep for the heartbeat interval
         std::this_thread::sleep_for(std::chrono::milliseconds(heartbeat_interval));
+
+        
     }
 }
 
@@ -276,7 +285,7 @@ int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message) {
     return status;
 }
 
-int AtomicBroadcastRing::broadcast_ring(const std::vector<uint8_t>& message, int max_attempts) {
+int AtomicBroadcastRing::broadcast_ring(const std::vector<uint8_t>& message, int max_attempts, const std::string& group_name) {
     int attempt_count = 0;
     int status = 0;
 
@@ -458,4 +467,65 @@ Message AtomicBroadcastRing::deliver() {
     }
 
     return msg;
+}
+
+// Add a method to dynamically create a group
+void AtomicBroadcastRing::create_group(const std::string& group_name) {
+    std::lock_guard<std::mutex> lock(group_mtx);
+    if (groups.find(group_name) == groups.end()) {
+        groups[group_name] = {};
+        log("Group " + group_name + " created.", "INFO");
+    } else {
+        log("Group " + group_name + " already exists.", "WARNING");
+    }
+}
+
+// Add a method for a node to join a group
+void AtomicBroadcastRing::join_group(const std::string& group_name) {
+    std::lock_guard<std::mutex> lock(group_mtx);
+    create_group(group_name);
+    groups[group_name].insert(process_id);
+    active_groups.insert(group_name);
+    log("Node " + std::to_string(process_id) + " joined group " + group_name, "INFO");
+
+    // Send a join message to notify others
+    std::vector<uint8_t> join_msg = serialize_group_message(group_name, process_id);
+    for (const auto& node : nodes) {
+        if (node.first != process_id) {
+            channels->send_message(node.first, process_id, Message(process_address, msg_num, "JOIN", join_msg));
+        }
+    }
+}
+
+// Serialize group information for join messages
+std::vector<uint8_t> AtomicBroadcastRing::serialize_group_message(const std::string& group_name, int node_id) {
+    std::vector<uint8_t> serialized;
+    for (char c : group_name) {
+        serialized.push_back(static_cast<uint8_t>(c));
+    }
+    serialized.push_back(0); // Delimiter
+    serialized.push_back(static_cast<uint8_t>(node_id));
+    return serialized;
+}
+
+// Deserialize group information from join messages
+std::pair<std::string, int> AtomicBroadcastRing::deserialize_group_message(const std::vector<uint8_t>& msg) {
+    std::string group_name;
+    int i = 0;
+    while (msg[i] != 0) {
+        group_name += static_cast<char>(msg[i]);
+        i++;
+    }
+    int node_id = static_cast<int>(msg[i + 1]);
+    return {group_name, node_id};
+}
+
+// Process received join messages
+void AtomicBroadcastRing::process_join_message(const Message& msg) {
+    auto [group_name, node_id] = deserialize_group_message(msg.content);
+    {
+        std::lock_guard<std::mutex> lock(group_mtx);
+        groups[group_name].insert(node_id);
+        log("Node " + std::to_string(node_id) + " joined group " + group_name, "INFO");
+    }
 }
