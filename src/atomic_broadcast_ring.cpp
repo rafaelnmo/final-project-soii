@@ -74,25 +74,49 @@ int AtomicBroadcastRing::find_next_node(int key) {
     
 
 // Heartbeat message sending logic
+// void AtomicBroadcastRing::send_heartbeat() {
+//     while (true) {
+//         std::vector<uint8_t> heartbeat_msg;
+//         for (const auto& entry : participant_states) {
+//             heartbeat_msg.push_back(static_cast<uint8_t>(entry.second));  // Serialize all participants states
+//         }
+
+//         // Send heartbeat to all participants (except self)
+//         for (const auto& node : nodes) {
+//             if (node.first != process_id) {
+//                 //log("Sending heartbeat to node " + std::to_string(node.first), "INFO");
+//                 channels->send_message(node.first, process_id, Message(process_address, msg_num, "HTB", heartbeat_msg));
+//             }
+//         }
+
+//         // Sleep for the heartbeat interval
+//         std::this_thread::sleep_for(std::chrono::milliseconds(heartbeat_interval));
+
+        
+//     }
+// }
+
 void AtomicBroadcastRing::send_heartbeat() {
     while (true) {
         std::vector<uint8_t> heartbeat_msg;
-        for (const auto& entry : participant_states) {
-            heartbeat_msg.push_back(static_cast<uint8_t>(entry.second));  // Serialize all participants states
+
+        {
+            std::lock_guard<std::mutex> lock(group_mtx);
+            for (const auto& group : active_groups) {
+                heartbeat_msg.push_back(static_cast<uint8_t>(group.size()));
+                for (int member : groups[group]) {
+                    heartbeat_msg.push_back(static_cast<uint8_t>(member));
+                }
+            }
         }
 
-        // Send heartbeat to all participants (except self)
         for (const auto& node : nodes) {
             if (node.first != process_id) {
-                //log("Sending heartbeat to node " + std::to_string(node.first), "INFO");
                 channels->send_message(node.first, process_id, Message(process_address, msg_num, "HTB", heartbeat_msg));
             }
         }
 
-        // Sleep for the heartbeat interval
         std::this_thread::sleep_for(std::chrono::milliseconds(heartbeat_interval));
-
-        
     }
 }
 
@@ -378,6 +402,11 @@ int AtomicBroadcastRing::send_token() {
 void AtomicBroadcastRing::deliver_thread() {
     while (true) {
         Message msg = receive_single_msg();
+
+        // handler for JOIN message
+        if (msg.msg_type == "JOIN") {
+            process_join_message(msg);
+        }    
 
         if (msg.msg_type=="TKT") {
             log("Token being passed", "INFO");
