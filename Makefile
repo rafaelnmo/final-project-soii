@@ -13,7 +13,7 @@ TARGET = my_project
 # Define log files
 LOGS = log*.txt
 
-all: $(TARGET)
+all: clean $(TARGET)
 
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS)
