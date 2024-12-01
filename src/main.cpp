@@ -160,7 +160,7 @@ int main(int argc, char* argv[]) {
     int process_id = std::stoi(argv[1]);
 
     // Initialize AtomicBroadcastRing
-    AtomicBroadcastRing ring(process_id, nodes, "config.conf", 0, 100, groups);
+    AtomicBroadcastRing ring(process_id, nodes, "config.txt", 0, 100, groups);
 
     // Example operations
     if (process_id == 2) {

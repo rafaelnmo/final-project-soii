@@ -19,9 +19,11 @@ AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<s
 
     for (const auto& group : groups) {
         if (group.second.count(id)) {
+            log("Groups node " +  std::to_string(id) + " is in: " + group.first);
             active_groups.insert(group.first);
         }
     }
+    
 
     // Initialize participant states to Uninitialized
     for (const auto& node : nodes) {
