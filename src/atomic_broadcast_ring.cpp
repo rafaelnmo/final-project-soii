@@ -293,15 +293,15 @@ void AtomicBroadcastRing::signalHandler(int signum) {
     longjmp(jumpBuffer_atomic, 1);  // Jump back to the saved state
 }
 
-int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message) {
+int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message, const std::string& group_name) {
     std::unique_lock<std::mutex> lock(mtx_token);
     cv_token.wait(lock, [this] { return token; });
 
-    int status = broadcast_ring(message, 3);
+    int status = broadcast_ring(message, 3, group_name);
     if (status==0) {
-        broadcast_ring(std::vector<uint8_t>{'D','E','L'}, 1);
+        broadcast_ring(std::vector<uint8_t>{'D','E','L'}, 1, group_name);
     } else {
-        broadcast_ring(std::vector<uint8_t>{'N','D','E','L'}, 1);
+        broadcast_ring(std::vector<uint8_t>{'N','D','E','L'}, 1, group_name);
     }
 
     send_token();
@@ -320,6 +320,13 @@ int AtomicBroadcastRing::broadcast_ring(const std::vector<uint8_t>& message, int
     sigaddset(&newmask, SIGALRM);
     pthread_sigmask(SIG_BLOCK, &newmask, &oldmask);
 
+    // check if the group to broadcast exist
+    std::lock_guard<std::mutex> lock(group_mtx);
+    if (groups.find(group_name) == groups.end()) {
+        log("Group " + group_name + " does not exist. Broadcast failed.", "ERROR");
+        return -1;
+    }
+
     while (attempt_count < max_attempts) {
         if (setjmp(jumpBuffer_atomic) == 0) {
             std::signal(SIGALRM, signalHandler);
@@ -330,7 +337,13 @@ int AtomicBroadcastRing::broadcast_ring(const std::vector<uint8_t>& message, int
             
             log("next_node: " + std::to_string(next_node_id));
             // Tenta enviar a mensagem para o próximo nó
-            channels->send_message(next_node_id, process_id, Message(process_address, msg_num, "MSG", message));
+            //channels->send_message(next_node_id, process_id, Message(process_address, msg_num, "MSG", message));
+
+            for (int member : groups[group_name]) {
+                if (member != process_id) {
+                    channels->send_message(member, process_id, Message(process_address, msg_num, "MSG", message));
+                }
+            }
 
             log("waiting for ring to complete", "INFO");
 

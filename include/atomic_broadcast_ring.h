@@ -33,7 +33,7 @@ public:
         const std::string& conf, int chance, int delay,
         const std::map<std::string, std::set<int>>& initial_groups = {});
 
-    int broadcast(const std::vector<uint8_t>& message) override;
+    int broadcast(const std::vector<uint8_t>& message, const std::string& group_name) override;
     
     // ----- GROUPS -----
     // Broadcast a message to a specific group

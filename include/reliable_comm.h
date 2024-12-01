@@ -26,6 +26,7 @@ public:
     ReliableComm(int id, const std::map<int, std::pair<std::string, int>>& nodes, std::string broadcast_type, std::string conf, int chance, int delay);
     int send(int id, const std::vector<uint8_t>& message);    
     virtual int broadcast(const std::vector<uint8_t>& message);
+    int broadcast(const std::vector<uint8_t>& message, const std::string& group_name);
     Message receive();
     virtual Message deliver();
     int get_process_id();
