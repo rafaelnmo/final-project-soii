@@ -19,7 +19,7 @@ AtomicBroadcastRing::AtomicBroadcastRing(int id, const std::map<int, std::pair<s
 
     for (const auto& group : groups) {
         if (group.second.count(id)) {
-            log("Groups node " +  std::to_string(id) + " is in: " + group.first);
+            log("Groups node " +  std::to_string(id) + " is in: " + group.first); //debug
             active_groups.insert(group.first);
         }
     }
@@ -86,41 +86,50 @@ int AtomicBroadcastRing::find_next_node(int key) {
 //         // Send heartbeat to all participants (except self)
 //         for (const auto& node : nodes) {
 //             if (node.first != process_id) {
-//                 //log("Sending heartbeat to node " + std::to_string(node.first), "INFO");
+//                 log("Sending heartbeat to node " + std::to_string(node.first), "INFO");
 //                 channels->send_message(node.first, process_id, Message(process_address, msg_num, "HTB", heartbeat_msg));
 //             }
 //         }
 
 //         // Sleep for the heartbeat interval
 //         std::this_thread::sleep_for(std::chrono::milliseconds(heartbeat_interval));
-
-        
 //     }
 // }
 
 void AtomicBroadcastRing::send_heartbeat() {
     while (true) {
         std::vector<uint8_t> heartbeat_msg;
+        
+        // Serialize the participant states for sending
+        for (const auto& entry : participant_states) {
+            heartbeat_msg.push_back(static_cast<uint8_t>(entry.second));  
+        }
 
-        {
-            std::lock_guard<std::mutex> lock(group_mtx);
-            for (const auto& group : active_groups) {
-                heartbeat_msg.push_back(static_cast<uint8_t>(group.size()));
-                for (int member : groups[group]) {
-                    heartbeat_msg.push_back(static_cast<uint8_t>(member));
+        std::set<int> target_nodes;
+
+        // Determine target nodes by iterating over active groups
+        for (const auto& group : active_groups) {
+            const auto& group_members = groups[group];
+            for (int member : group_members) {
+                if (member != process_id) {
+                    log("Member " + std::to_string(member), "DEBUG");
+                    target_nodes.insert(member);
                 }
             }
         }
 
-        for (const auto& node : nodes) {
-            if (node.first != process_id) {
-                channels->send_message(node.first, process_id, Message(process_address, msg_num, "HTB", heartbeat_msg));
-            }
+        // Send heartbeat to target nodes
+        for (int target_node : target_nodes) {
+            log("Sending heartbeat to node " + std::to_string(target_node), "DEBUG");
+            channels->send_message(target_node, process_id, 
+                                    Message(process_address, msg_num, "HTB", heartbeat_msg));
         }
 
+        // Sleep for the heartbeat interval
         std::this_thread::sleep_for(std::chrono::milliseconds(heartbeat_interval));
     }
 }
+
 
 // Process received heartbeat messages
 void AtomicBroadcastRing::process_heartbeat(const Message& msg) {
@@ -243,6 +252,8 @@ void AtomicBroadcastRing::htb_handler_thread() {
 
         std::unique_lock<std::mutex> lock(mtx_htb);
         bool status = cv_htb.wait_for(lock, std::chrono::seconds(5), [this] { return !htb_queue.empty(); });
+        log("STATUS:" + status);
+        log("Heartbeat status:" + status, "STATUS");
         if (status) {
             //log("Heartbeat message received", "INFO");
             msg = htb_queue.front();
