@@ -9,6 +9,63 @@
 #include <string>
 #include <algorithm>
 
+
+int main(int argc, char* argv[]) {
+    // Parse configuration file
+    std::map<int, std::pair<std::string, int>> nodes = {
+        {0, {"127.0.0.1", 3000}},
+        {1, {"127.0.0.1", 3001}},
+        {2, {"127.0.0.1", 3002}}//,
+        // {3, {"127.0.0.1", 3003}},
+        // {4, {"127.0.0.1", 3004}}
+    };
+
+    std::map<std::string, std::set<int>> groups = {
+        {"GroupA", {0, 1}},
+        {"GroupB", {1, 2}},
+        {"GroupC", {0}}
+    };
+
+    // Assume node ID is passed as an argument to the program
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <node_id>" << std::endl;
+        return 1;
+    }
+
+    int process_id = std::stoi(argv[1]);
+
+    // Initialize AtomicBroadcastRing
+    AtomicBroadcastRing ring(process_id, nodes, "config.txt", 0, 100, groups);
+
+    // Example operations
+    if (process_id == 2) {
+        // Node 2 dynamically joins GroupB
+        ring.join_group("GroupB");
+    } else if (process_id == 4) {
+        // Node 4 dynamically creates a new group
+        ring.create_group("GroupD");
+        ring.join_group("GroupD");
+    }
+
+    // Broadcast messages to groups
+    if (process_id == 1) {
+        std::vector<uint8_t> message = {'H', 'e', 'l', 'l', 'o', ' ', 'G', 'r', 'o', 'u', 'p', 'A'};
+        ring.broadcast_ring(message, 3, "GroupA");
+    }
+
+    // Keep the process running to handle messages
+    while (true) {
+        Message msg = ring.deliver();
+        if (!msg.content.empty()) {
+            std::cout << "Received message: " << std::string(msg.content.begin(), msg.content.end()) 
+                      << " from node " << msg.sender_address << std::endl;
+        }
+    }
+
+    return 0;
+}
+
+
 // // Helper function to trim leading and trailing spaces
 // std::string trim(const std::string& str) {
 //     size_t first = str.find_first_not_of(" \t");
@@ -134,58 +191,3 @@
 //     return 0;
 // }
 
-
-int main(int argc, char* argv[]) {
-    // Parse configuration file
-    std::map<int, std::pair<std::string, int>> nodes = {
-        {0, {"127.0.0.1", 3000}},
-        {1, {"127.0.0.1", 3001}},
-        {2, {"127.0.0.1", 3002}},
-        {3, {"127.0.0.1", 3003}},
-        {4, {"127.0.0.1", 3004}}
-    };
-
-    std::map<std::string, std::set<int>> groups = {
-        {"GroupA", {0, 1, 2}},
-        {"GroupB", {2, 3}},
-        {"GroupC", {1, 4}}
-    };
-
-    // Assume node ID is passed as an argument to the program
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <node_id>" << std::endl;
-        return 1;
-    }
-
-    int process_id = std::stoi(argv[1]);
-
-    // Initialize AtomicBroadcastRing
-    AtomicBroadcastRing ring(process_id, nodes, "config.txt", 0, 100, groups);
-
-    // Example operations
-    if (process_id == 2) {
-        // Node 2 dynamically joins GroupB
-        ring.join_group("GroupB");
-    } else if (process_id == 4) {
-        // Node 4 dynamically creates a new group
-        ring.create_group("GroupD");
-        ring.join_group("GroupD");
-    }
-
-    // Broadcast messages to groups
-    if (process_id == 1) {
-        std::vector<uint8_t> message = {'H', 'e', 'l', 'l', 'o', ' ', 'G', 'r', 'o', 'u', 'p', 'A'};
-        ring.broadcast_ring(message, 3, "GroupA");
-    }
-
-    // Keep the process running to handle messages
-    while (true) {
-        Message msg = ring.deliver();
-        if (!msg.content.empty()) {
-            std::cout << "Received message: " << std::string(msg.content.begin(), msg.content.end()) 
-                      << " from node " << msg.sender_address << std::endl;
-        }
-    }
-
-    return 0;
-}
