@@ -102,6 +102,8 @@ void AtomicBroadcastRing::send_heartbeat() {
         
         // Serialize the participant states for sending
         for (const auto& entry : participant_states) {
+            //log("Participant : " + std::to_string(entry.first), "DEBUG");
+            //log("Participant state: " + static_cast<uint8_t>(entry.second), "DEBUG");
             heartbeat_msg.push_back(static_cast<uint8_t>(entry.second));  
         }
 
@@ -112,7 +114,7 @@ void AtomicBroadcastRing::send_heartbeat() {
             const auto& group_members = groups[group];
             for (int member : group_members) {
                 if (member != process_id) {
-                    log("Member " + std::to_string(member), "DEBUG");
+                    //log("Member " + std::to_string(member), "DEBUG");
                     target_nodes.insert(member);
                 }
             }
@@ -120,9 +122,9 @@ void AtomicBroadcastRing::send_heartbeat() {
 
         // Send heartbeat to target nodes
         for (int target_node : target_nodes) {
-            log("Sending heartbeat to node " + std::to_string(target_node), "DEBUG");
-            channels->send_message(target_node, process_id, 
-                                    Message(process_address, msg_num, "HTB", heartbeat_msg));
+            //log("Sending heartbeat to node: " + std::to_string(target_node), "DEBUG");
+            //log("Sender ID: " + std::to_string(process_id), "DEBUG");
+            channels->send_message(target_node, process_id, Message(process_address, msg_num, "HTB", heartbeat_msg));
         }
 
         // Sleep for the heartbeat interval
@@ -133,7 +135,7 @@ void AtomicBroadcastRing::send_heartbeat() {
 
 // Process received heartbeat messages
 void AtomicBroadcastRing::process_heartbeat(const Message& msg) {
-    //log("Processing heartbeat message", "INFO");
+    log("Processing heartbeat message", "DEBUG");
 
     int key = find_key(msg.sender_address);
 
@@ -255,7 +257,7 @@ void AtomicBroadcastRing::htb_handler_thread() {
         log("STATUS:" + status);
         log("Heartbeat status:" + status, "STATUS");
         if (status) {
-            //log("Heartbeat message received", "INFO");
+            log("Heartbeat message received", "DEBUG");
             msg = htb_queue.front();
             htb_queue.pop();
 

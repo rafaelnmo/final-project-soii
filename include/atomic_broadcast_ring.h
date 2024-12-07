@@ -46,16 +46,26 @@ public:
     Message deliver() override;
     void listen();
     
+    // Participant states (map of process ID to state)
+    std::map<int, ParticipantState> participant_states;
+    void detect_defective_processes();  // Detect faulty processes based on heartbeats
+    int send_token();
+    void buffer_message_for_uninitialized(const Message& msg);  // Buffer messages for uninitialized processes
+    void deliver_buffered_messages(int node_id);  // Deliver buffered messages once the process is active
+    void send_heartbeat();  // Periodically send heartbeat messages
+    std::map<int, std::queue<Message>> message_buffers;
+    std::queue<Message> deliver_queue;
+
 
 private:
     // Witness of nodes (map of process ID to set of process IDs that mark it as alive)
     std::map<int, std::set<uint8_t>> witness_of_nodes;
 
     // Participant states (map of process ID to state)
-    std::map<int, ParticipantState> participant_states;
+    //std::map<int, ParticipantState> participant_states;
 
     // Buffers to store messages for uninitialized processes
-    std::map<int, std::queue<Message>> message_buffers;
+    //std::map<int, std::queue<Message>> message_buffers;
 
     // ----- GROUPS -----
     // Group-related data structures
@@ -73,7 +83,7 @@ private:
 
     int next_node_id;
     bool token = false;
-    std::queue<Message> deliver_queue;
+    // std::queue<Message> deliver_queue;
     std::condition_variable cv_deliver;
     std::mutex mtx_deliver;
 
@@ -94,15 +104,15 @@ private:
 
     // Failure detection methods
     int find_next_node(int key);    // check for next active node in ring
-    void send_heartbeat();  // Periodically send heartbeat messages
+    // void send_heartbeat();  // Periodically send heartbeat messages
     void process_heartbeat(const Message& msg);  // Process received heartbeat messages
-    void detect_defective_processes();  // Detect faulty processes based on heartbeats
-    void buffer_message_for_uninitialized(const Message& msg);  // Buffer messages for uninitialized processes
-    void deliver_buffered_messages(int node_id);  // Deliver buffered messages once the process is active
+    //void detect_defective_processes();  // Detect faulty processes based on heartbeats
+    //void buffer_message_for_uninitialized(const Message& msg);  // Buffer messages for uninitialized processes
+    //void deliver_buffered_messages(int node_id);  // Deliver buffered messages once the process is active
 
 
     static void signalHandler(int signum);
-    int send_token();
+    //int send_token();
 
     void token_monitor();
     void deliver_thread();
