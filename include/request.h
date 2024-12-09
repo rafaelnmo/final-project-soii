@@ -4,6 +4,15 @@
 #include <string>
 #include <vector>
 
+
+/*
+Types of request:
+    SET - Set a value
+    GET - Get a value
+    YES - Successfull operation
+    NOO - Unsuccessfull operation
+*/
+
 struct Request
 {
     int key;
