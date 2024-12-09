@@ -538,18 +538,45 @@ void AtomicBroadcastRing::create_group(const std::string& group_name) {
 }
 
 // Add a method for a node to join a group
-void AtomicBroadcastRing::join_group(const std::string& group_name) {
-    std::lock_guard<std::mutex> lock(group_mtx);
-    create_group(group_name);
-    groups[group_name].insert(process_id);
-    active_groups.insert(group_name);
-    log("Node " + std::to_string(process_id) + " joined group " + group_name, "INFO");
-
-    // Send a join message to notify others
+int AtomicBroadcastRing::join_group(const std::string& group_name) {
+    // envio de mensagem de JOIN
     std::vector<uint8_t> join_msg = serialize_group_message(group_name, process_id);
-    for (const auto& node : nodes) {
-        if (node.first != process_id) {
-            channels->send_message(node.first, process_id, Message(process_address, msg_num, "JOIN", join_msg));
+    channels->send_message(next_node_id, process_id, Message(process_address, msg_num, "JOIN", join_msg));
+    log("Join message sent to node " + std::to_string(next_node_id), "INFO");
+    // await for response
+    Message response = receive_single_msg();
+    if (response.msg_type == "ERR") {
+        log("Error joining group", "ERROR");
+        return -1;
+    }
+    // await for permission to enter the group
+    Message signal = receive_single_msg();
+    //add group nodes to known nodes
+    for (auto id : signal.content) {
+        nodes[id].first = signal.content[id];
+    }
+    //add group to active groups
+    groups[group_name] = signal.content;
+    return 0;
+}
+
+void AtomicBroadcastRing::receive_join() {
+    while (true) {
+        Message msg;
+        std::unique_lock<std::mutex> lock(mtx_join);
+        bool status = cv_join.wait_for(lock, std::chrono::seconds(5), [this] { return !join_queue.empty(); });
+        if (status) {
+            msg = join_queue.front();
+            join_queue.pop();
+
+            if (msg.msg_type == "JOIN") {
+                process_join_message(msg);
+                // wait for token
+                broadcast_ring(group_notify_message(), 1, str(msg.content->begin(), msg.content->end()));
+                channels->send_message(msg.sender_address, process_id, Message(process_address, msg_num, "ENT", serialize_group_message(str(msg.content->begin(), msg.content->end()), process_id)));
+            } else {
+                log("Received invalid message type in join queue", "ERROR");
+            }
         }
     }
 }

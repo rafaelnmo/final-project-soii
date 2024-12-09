@@ -41,7 +41,7 @@ public:
     // Method to dynamically create a new group
     void create_group(const std::string& group_name);
     // Method to join an existing group
-    void join_group(const std::string& group_name);
+    int join_group(const std::string& group_name);
 
     Message deliver() override;
     void listen();
@@ -94,6 +94,9 @@ private:
 
     bool tkt_passsed = false;
 
+    std::map<int, std::queue<int>> group_members;
+    std::map<int, bool> has_group_token;
+
     // Heartbeat interval (in milliseconds)
     int heartbeat_interval = 1000;  // Default is 1 second
     int failures;
@@ -120,6 +123,7 @@ private:
     int find_key(std::string address);
     void print_states();
     void htb_handler_thread();
+    void receive_join();
 };
 
 #endif
