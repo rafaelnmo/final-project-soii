@@ -1,8 +1,11 @@
 CXX = g++
 CXXFLAGS = -std=c++20 -Include -g -Wall -Werror -pedantic -I $$(pwd)/include
 
+SRC_DIR = src
+
+
 # Define sources and objects
-SRCS = src/application.cpp src/reliable_comm.cpp src/channels.cpp src/main.cpp src/message.cpp src/atomic_broadcast_ring.cpp
+SRCS = $(wildcard $(SRC_DIR)/*.cpp)
 SRCS_TEST = src/application.cpp src/reliable_comm.cpp src/channels.cpp src/message.cpp src/atomic_broadcast_ring.cpp
 
 OBJS = $(SRCS:.cpp=.o)
