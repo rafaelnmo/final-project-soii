@@ -7,7 +7,7 @@ generator::generator(int num_threads, int write_chance, int total_ops, ReliableC
     comm = comm;
     write_chance = write_chance;
     total_ops = total_ops;
-    generator_threads = {};
+    //generator_threads = {};
     for(int i=0; i<num_threads; i++){
         generator_threads.push_back(std::thread(&generator::generate_message, this));
     }

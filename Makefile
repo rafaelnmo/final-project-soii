@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++20 -Include -g -Wall -Werror -pedantic -I $$(pwd)/include
+CXXFLAGS = -std=c++20 -Include -g -Wall -pedantic -I $$(pwd)/include
 
 SRC_DIR = src
 

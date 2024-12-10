@@ -663,7 +663,8 @@ void AtomicBroadcastRing::process_join_message(const Message& msg) {
             // Update the group's node list
             if (groups.find(group_name) != groups.end()) {
                 auto& members = groups[group_name];
-                members.erase(std::remove(members.begin(), members.end(), node_id), members.end());
+                //members.erase(std::remove(members.begin(), members.end(), node_id), members.end());
+                members.erase(node_id);
                 
                 log("Node " + std::to_string(node_id) + " left group " + group_name, "INFO");
 

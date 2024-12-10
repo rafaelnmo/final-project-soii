@@ -5,6 +5,9 @@
 #include <thread>
 #include "atomic_broadcast_ring.h"
 #include "request.h"
+#include <iostream> 
+#include <unistd.h> 
+
 
 class generator
 {
