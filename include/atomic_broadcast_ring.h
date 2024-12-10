@@ -55,6 +55,8 @@ public:
     void send_heartbeat();  // Periodically send heartbeat messages
     std::map<int, std::queue<Message>> message_buffers;
     std::queue<Message> deliver_queue;
+    int leave_group(const std::string& group_name);
+    void handle_leave_message(const Message& msg);
 
 
 private:

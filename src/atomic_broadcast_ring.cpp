@@ -613,3 +613,64 @@ void AtomicBroadcastRing::process_join_message(const Message& msg) {
         log("Node " + std::to_string(node_id) + " joined group " + group_name, "INFO");
     }
 }
+
+// Notify other nodes about leaving a group
+    int AtomicBroadcastRing::leave_group(const std::string& group_name) {
+        if (groups.find(group_name) == groups.end()) {
+            log("Group not found: " + group_name, "ERROR");
+            return -1;
+        }
+
+        try {
+            // Serialize LEAVE message
+            std::vector<uint8_t> leave_msg = serialize_group_message(group_name, process_id);
+
+            // Notify all members of the group
+            for (int node_id : groups[group_name]) {
+                if (node_id != process_id) { // Don't notify self
+                    channels->send_message(node_id, process_id, 
+                        Message(process_address, msg_num++, "LEAVE", leave_msg));
+                }
+            }
+
+            log("Leave message sent to all nodes in group " + group_name, "INFO");
+
+            // Remove self from the group map
+            groups.erase(group_name);
+
+            return 0;
+
+        } catch (const std::exception& ex) {
+            log("Exception in leave_group: " + std::string(ex.what()), "ERROR");
+            return -1;
+        }
+    }
+
+    // Handle LEAVE messages from other nodes
+    void AtomicBroadcastRing::handle_leave_message(const Message& msg) {
+        try {
+            // Deserialize the LEAVE message
+            std::string group_name;
+            int node_id;
+            std::tie(group_name, node_id) = deserialize_group_message(msg.content);
+
+            // Update the group's node list
+            if (groups.find(group_name) != groups.end()) {
+                auto& members = groups[group_name];
+                members.erase(std::remove(members.begin(), members.end(), node_id), members.end());
+                
+                log("Node " + std::to_string(node_id) + " left group " + group_name, "INFO");
+
+                // If the group becomes empty, remove it
+                if (members.empty()) {
+                    groups.erase(group_name);
+                    log("Group " + group_name + " is now empty and removed", "INFO");
+                }
+            } else {
+                log("Group not found while processing LEAVE message: " + group_name, "WARN");
+            }
+
+        } catch (const std::exception& ex) {
+            log("Exception in handle_leave_message: " + std::string(ex.what()), "ERROR");
+        }
+    }
