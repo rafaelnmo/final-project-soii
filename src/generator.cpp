@@ -33,12 +33,13 @@ void generator::generate_message(){
         cv_send.notify_all();
 
         int rand_sleep = rand()%(200-10 + 1) + 10;
-        usleep(100);
+        //usleep(100);
+        usleep(rand_sleep);
     }
 }
 
 void generator::send_message(){
-    for(int i=0; i<(total_ops*generator_threads.size()); i++){
+    for(std::size_t i=0; i<(total_ops*generator_threads.size()); i++){
         // Send a message
         std::unique_lock<std::mutex> lock(mtx);
         cv_send.wait(lock, [this] { return !message_queue.empty(); });
