@@ -555,8 +555,13 @@ int AtomicBroadcastRing::join_group(const std::string& group_name) {
     for (auto id : signal.content) {
         nodes[id].first = signal.content[id];
     }
+
+    std::string str(signal.content.begin(), signal.content.end()); // Convert to string
+    //std::cout << "Vector as string: " << str << std::endl;
+
+    log("Content Signal: " + str, "DEBUG");
     //add group to active groups
-    groups[group_name] = signal.content;
+    //groups[group_name] = signal.content;
     return 0;
 }
 
@@ -572,8 +577,9 @@ void AtomicBroadcastRing::receive_join() {
             if (msg.msg_type == "JOIN") {
                 process_join_message(msg);
                 // wait for token
-                broadcast_ring(group_notify_message(), 1, str(msg.content->begin(), msg.content->end()));
-                channels->send_message(msg.sender_address, process_id, Message(process_address, msg_num, "ENT", serialize_group_message(str(msg.content->begin(), msg.content->end()), process_id)));
+                log("Received join message", "DEBUG");
+                //broadcast_ring(group_notify_message(), 1, str(msg.content->begin(), msg.content->end()));
+                //channels->send_message(msg.sender_address, process_id, Message(process_address, msg_num, "ENT", serialize_group_message(str(msg.content->begin(), msg.content->end()), process_id)));
             } else {
                 log("Received invalid message type in join queue", "ERROR");
             }

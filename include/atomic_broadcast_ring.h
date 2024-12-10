@@ -42,6 +42,10 @@ public:
     void create_group(const std::string& group_name);
     // Method to join an existing group
     int join_group(const std::string& group_name);
+    std::mutex mtx_join; // Mutex for synchronizing access to join_queue
+    std::queue<Message> join_queue;
+    std::condition_variable cv_join;             // Condition variable for signaling join_queue
+
 
     Message deliver() override;
     void listen();
