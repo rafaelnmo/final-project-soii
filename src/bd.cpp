@@ -2,6 +2,7 @@
 #include "request.h"
 #include <iostream>
 #include <fstream>
+#include <unistd.h>
 
 bd::bd(int id, int gen_id, ReliableComm* comm)
 {

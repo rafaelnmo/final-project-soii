@@ -27,6 +27,7 @@ std::vector<uint8_t> Request::serialize() const {
     return data;
 }
 
+/*
 static Request deserialize(const std::vector<uint8_t>& data) {
     size_t offset = 0;
 
@@ -57,4 +58,4 @@ static Request deserialize(const std::vector<uint8_t>& data) {
     std::string type(data.begin() + offset, data.begin() + offset + typeSize);
 
     return Request(key, val, type);
-}
+} */
