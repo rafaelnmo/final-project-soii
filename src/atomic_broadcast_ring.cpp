@@ -254,8 +254,8 @@ void AtomicBroadcastRing::htb_handler_thread() {
 
         std::unique_lock<std::mutex> lock(mtx_htb);
         bool status = cv_htb.wait_for(lock, std::chrono::seconds(5), [this] { return !htb_queue.empty(); });
-        log("STATUS:" + status);
-        log("Heartbeat status:" + status, "STATUS");
+        log("STATUS:" + std::to_string(status));
+        log("Heartbeat status:" + std::to_string(status), "STATUS");
         if (status) {
             log("Heartbeat message received", "DEBUG");
             msg = htb_queue.front();

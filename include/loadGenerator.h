@@ -15,6 +15,7 @@ private:
     std::atomic<int> operationsPerformed;
 
     void generateRequests();
+    void generateRequests(int clientId); 
 
 public:
     LoadGenerator(int ratio, int operations, int clients, KeyValueStore& kv);
