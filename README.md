@@ -108,6 +108,10 @@ Agora que você tem o executável, você pode executá-lo diretamente no termina
 ```
 
 ```bash
+./my_project 2 config.txt
+```
+
+```bash
 ./my_project 0 config.txt
 ```
 
