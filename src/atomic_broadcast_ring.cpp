@@ -312,6 +312,8 @@ int AtomicBroadcastRing::broadcast(const std::vector<uint8_t>& message, const st
     std::unique_lock<std::mutex> lock(mtx_token);
     cv_token.wait(lock, [this] { return token; });
 
+    std::cout << "BROADCAST METHOD\n\n" << std::endl;
+
     int status = broadcast_ring(message, 3, group_name);
     if (status==0) {
         broadcast_ring(std::vector<uint8_t>{'D','E','L'}, 1, group_name);
@@ -334,6 +336,17 @@ int AtomicBroadcastRing::broadcast_ring(const std::vector<uint8_t>& message, int
     sigemptyset(&newmask);
     sigaddset(&newmask, SIGALRM);
     pthread_sigmask(SIG_BLOCK, &newmask, &oldmask);
+
+        // Iterate over the map
+    for (const auto& group : groups) {
+        std::cout << group.first << ": "; // Print group name
+
+        // Iterate over the set
+        for (const auto& member : group.second) {
+            std::cout << member << " "; // Print group member
+        }
+        std::cout << std::endl; // Newline for the next group
+    }
 
     // check if the group to broadcast exist
     std::lock_guard<std::mutex> lock(group_mtx);
@@ -538,51 +551,18 @@ void AtomicBroadcastRing::create_group(const std::string& group_name) {
 }
 
 // Add a method for a node to join a group
-int AtomicBroadcastRing::join_group(const std::string& group_name) {
-    // envio de mensagem de JOIN
+void AtomicBroadcastRing::join_group(const std::string& group_name) {
+    std::lock_guard<std::mutex> lock(group_mtx);
+    create_group(group_name);
+    groups[group_name].insert(process_id);
+    active_groups.insert(group_name);
+    log("Node " + std::to_string(process_id) + " joined group " + group_name, "INFO");
+
+    // Send a join message to notify others
     std::vector<uint8_t> join_msg = serialize_group_message(group_name, process_id);
-    channels->send_message(next_node_id, process_id, Message(process_address, msg_num, "JOIN", join_msg));
-    log("Join message sent to node " + std::to_string(next_node_id), "INFO");
-    // await for response
-    Message response = receive_single_msg();
-    if (response.msg_type == "ERR") {
-        log("Error joining group", "ERROR");
-        return -1;
-    }
-    // await for permission to enter the group
-    Message signal = receive_single_msg();
-    //add group nodes to known nodes
-    for (auto id : signal.content) {
-        nodes[id].first = signal.content[id];
-    }
-
-    std::string str(signal.content.begin(), signal.content.end()); // Convert to string
-    //std::cout << "Vector as string: " << str << std::endl;
-
-    log("Content Signal: " + str, "DEBUG");
-    //add group to active groups
-    //groups[group_name] = signal.content;
-    return 0;
-}
-
-void AtomicBroadcastRing::receive_join() {
-    while (true) {
-        Message msg;
-        std::unique_lock<std::mutex> lock(mtx_join);
-        bool status = cv_join.wait_for(lock, std::chrono::seconds(5), [this] { return !join_queue.empty(); });
-        if (status) {
-            msg = join_queue.front();
-            join_queue.pop();
-
-            if (msg.msg_type == "JOIN") {
-                process_join_message(msg);
-                // wait for token
-                log("Received join message", "DEBUG");
-                //broadcast_ring(group_notify_message(), 1, str(msg.content->begin(), msg.content->end()));
-                //channels->send_message(msg.sender_address, process_id, Message(process_address, msg_num, "ENT", serialize_group_message(str(msg.content->begin(), msg.content->end()), process_id)));
-            } else {
-                log("Received invalid message type in join queue", "ERROR");
-            }
+    for (const auto& node : nodes) {
+        if (node.first != process_id) {
+            channels->send_message(node.first, process_id, Message(process_address, msg_num, "JOIN", join_msg));
         }
     }
 }
@@ -619,65 +599,3 @@ void AtomicBroadcastRing::process_join_message(const Message& msg) {
         log("Node " + std::to_string(node_id) + " joined group " + group_name, "INFO");
     }
 }
-
-// Notify other nodes about leaving a group
-    int AtomicBroadcastRing::leave_group(const std::string& group_name) {
-        if (groups.find(group_name) == groups.end()) {
-            log("Group not found: " + group_name, "ERROR");
-            return -1;
-        }
-
-        try {
-            // Serialize LEAVE message
-            std::vector<uint8_t> leave_msg = serialize_group_message(group_name, process_id);
-
-            // Notify all members of the group
-            for (int node_id : groups[group_name]) {
-                if (node_id != process_id) { // Don't notify self
-                    channels->send_message(node_id, process_id, 
-                        Message(process_address, msg_num++, "LEAVE", leave_msg));
-                }
-            }
-
-            log("Leave message sent to all nodes in group " + group_name, "INFO");
-
-            // Remove self from the group map
-            groups.erase(group_name);
-
-            return 0;
-
-        } catch (const std::exception& ex) {
-            log("Exception in leave_group: " + std::string(ex.what()), "ERROR");
-            return -1;
-        }
-    }
-
-    // Handle LEAVE messages from other nodes
-    void AtomicBroadcastRing::handle_leave_message(const Message& msg) {
-        try {
-            // Deserialize the LEAVE message
-            std::string group_name;
-            int node_id;
-            std::tie(group_name, node_id) = deserialize_group_message(msg.content);
-
-            // Update the group's node list
-            if (groups.find(group_name) != groups.end()) {
-                auto& members = groups[group_name];
-                //members.erase(std::remove(members.begin(), members.end(), node_id), members.end());
-                members.erase(node_id);
-                
-                log("Node " + std::to_string(node_id) + " left group " + group_name, "INFO");
-
-                // If the group becomes empty, remove it
-                if (members.empty()) {
-                    groups.erase(group_name);
-                    log("Group " + group_name + " is now empty and removed", "INFO");
-                }
-            } else {
-                log("Group not found while processing LEAVE message: " + group_name, "WARN");
-            }
-
-        } catch (const std::exception& ex) {
-            log("Exception in handle_leave_message: " + std::string(ex.what()), "ERROR");
-        }
-    }
