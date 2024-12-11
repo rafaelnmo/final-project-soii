@@ -112,17 +112,19 @@ int main(int argc, char** argv) {
     int chance = 0;
     int delay = 1;
 
-    ReliableComm* comm;
+    //ReliableComm* comm;
+    AtomicBroadcastRing* comm;
+
 
     if (broadcast_type == "AB") {
         std::cout << "----- Executando Atomic Broadcast -----\n";
         comm = new AtomicBroadcastRing(node_id, nodes, conf, chance, delay);
     } else if (broadcast_type == "BE") {
-        std::cout << "----- Executando Best Effort Broadcast -----\n";
-        comm = new ReliableComm(node_id, nodes, broadcast_type, conf, chance, delay);
+        //std::cout << "----- Executando Best Effort Broadcast -----\n";
+        //comm = new ReliableComm(node_id, nodes, broadcast_type, conf, chance, delay);
     } else if (broadcast_type == "UR") {
         std::cout << "----- Executando Uniform Reliable Broadcast -----\n";
-        comm = new ReliableComm(node_id, nodes, broadcast_type, conf, chance, delay);
+        //comm = new ReliableComm(node_id, nodes, broadcast_type, conf, chance, delay);
     } else {
         std::cerr << "Error: Unsupported broadcast type: " << broadcast_type << "\n";
         return 1;
