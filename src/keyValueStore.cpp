@@ -7,9 +7,6 @@ void KeyValueStore::write(const std::string& key, const std::string& value) {
     std::lock_guard<std::mutex> lock(mtx);
     store[key] = value;
 
-    // std::string message = "WRITE " + key + " " + value;
-
-    //std::vector<uint8_t> message1 = { 'F', 'i', 'r', 's', 't' };
      // Serialize message
     std::string message = "WRITE " + key + " " + value;
     std::vector<uint8_t> message1(message.begin(), message.end());
