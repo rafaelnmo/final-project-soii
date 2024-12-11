@@ -4,8 +4,8 @@
 #include <random>
 #include <random>
 
-LoadGenerator::LoadGenerator(int ratio, int operations, int clients, KeyValueStore& kv)
-    : readWriteRatio(ratio), totalOperations(operations), numClients(clients), kvStore(kv), operationsPerformed(0) {}
+LoadGenerator::LoadGenerator(int ratio, int operations, int clients, KeyValueStore& kv, PerformanceMonitor& monitor )
+    : readWriteRatio(ratio), totalOperations(operations), numClients(clients), kvStore(kv), performanceMonitor(monitor), operationsPerformed(0) {}
 
 void LoadGenerator::generateRequests() {
     std::random_device rd;
@@ -31,6 +31,7 @@ void LoadGenerator::generateRequests() {
         }
 
         operationsPerformed++;
+        performanceMonitor.incrementOperations();
         std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Simulate load
     }
 }

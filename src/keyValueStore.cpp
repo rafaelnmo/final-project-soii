@@ -17,6 +17,7 @@ void KeyValueStore::write(const std::string& key, const std::string& value) {
         std::cout << "Performing WRITE operation on key: " << key << std::endl;
         // comm->broadcast(message1, "GroupA");
         comm->send(1, message1);
+        // comm->broadcast(message1);
         std::cout << "--- End operation WRITE ---\n\n" << std::endl;
     } catch (const std::exception& e) {
         // Handle potential broadcast errors
